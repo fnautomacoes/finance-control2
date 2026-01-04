@@ -88,3 +88,7 @@
 
 ## Bugs Encontrados
 - [x] Criar página de Categorias (rota /categories retorna 404)
+
+## Melhorias de UI/UX
+- [x] Redesenhar página de Transações com painel lateral e novo layout
+- [x] Implementar novo Sidebar com menu expansível
