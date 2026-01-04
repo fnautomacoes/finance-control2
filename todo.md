@@ -95,3 +95,16 @@
 
 ## Redesign Dashboard Home
 - [x] Redesenhar página Home com layout em 3 colunas (Metas, Saldos, Resultados)
+
+
+## Melhorias na Visão Geral (Home)
+- [x] Adicionar filtro de período para análise de dados
+- [x] Atualizar Saldos de Caixa com colunas "Confirmado" e "Projetado" + total dinâmico
+- [x] Remover botões "Adicionar este recurso agora" de todos os blocos
+- [x] Atualizar Resultados de Caixa com colunas: Conta, Entradas, Saídas, Resultado
+- [x] Redesenhar Fluxo de Caixa mensal com saldo por mês
+- [x] Adicionar Metas de despesas por centro
+- [x] Adicionar Balanço Patrimonial (Ativo/Passivo com subcategorias)
+- [x] Adicionar Receitas por Centro
+- [x] Adicionar Metas de receita por centro com colunas: Centro, Meta, Realizado, Resíduo
+- [x] Garantir que todos os dados sejam funcionais e linkados ao banco de dados
