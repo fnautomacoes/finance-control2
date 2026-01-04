@@ -34,10 +34,10 @@
 ## Fase 5: Módulo de Contas e Transações
 - [x] Criar página de contas bancárias
 - [x] Implementar CRUD de contas na UI
-- [ ] Criar página de transações
-- [ ] Implementar CRUD de transações na UI
-- [ ] Criar filtros de transações (data, categoria, conta)
-- [ ] Implementar busca de transações
+- [x] Criar página de transações
+- [x] Implementar CRUD de transações na UI
+- [x] Criar filtros de transações (data, categoria, conta)
+- [x] Implementar busca de transações
 
 ## Fase 6: Módulo de Categorias e Orçamento
 - [ ] Criar página de categorias
@@ -48,11 +48,11 @@
 - [ ] Implementar cálculo de gastos vs metas
 
 ## Fase 7: Módulo de Investimentos
-- [ ] Criar página de carteira de investimentos
-- [ ] Implementar CRUD de investimentos na UI
-- [ ] Implementar cálculo de rentabilidade
-- [ ] Criar gráficos de evolução patrimonial
-- [ ] Implementar comparação com índices
+- [x] Criar página de carteira de investimentos
+- [x] Implementar CRUD de investimentos na UI
+- [x] Implementar cálculo de rentabilidade
+- [x] Criar gráficos de evolução patrimonial
+- [x] Implementar comparação com índices
 
 ## Fase 8: Módulos Complementares
 - [ ] Criar página de contas a pagar/receber
