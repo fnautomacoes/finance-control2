@@ -92,3 +92,6 @@
 ## Melhorias de UI/UX
 - [x] Redesenhar página de Transações com painel lateral e novo layout
 - [x] Implementar novo Sidebar com menu expansível
+
+## Redesign Dashboard Home
+- [x] Redesenhar página Home com layout em 3 colunas (Metas, Saldos, Resultados)
