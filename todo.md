@@ -85,3 +85,6 @@
 - [ ] Módulos de negócio
 - [ ] Relatórios e exportação
 - [ ] Deploy final
+
+## Bugs Encontrados
+- [x] Criar página de Categorias (rota /categories retorna 404)

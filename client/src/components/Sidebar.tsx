@@ -65,13 +65,11 @@ export function Sidebar() {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="p-6 border-b border-slate-700">
-            <Link href="/">
-              <a className="flex items-center gap-2 font-bold text-xl hover:opacity-80">
-                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                  FC
-                </div>
-                <span>FinanceControl</span>
-              </a>
+            <Link href="/" className="flex items-center gap-2 font-bold text-xl hover:opacity-80">
+              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                FC
+              </div>
+              <span>FinanceControl</span>
             </Link>
           </div>
 
@@ -82,19 +80,19 @@ export function Sidebar() {
               const isActive = location === item.href;
 
               return (
-                <Link key={item.href} href={item.href}>
-                  <a
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
-                      isActive
-                        ? "bg-blue-600 text-white"
-                        : "text-slate-300 hover:bg-slate-800"
-                    )}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span>{item.name}</span>
-                  </a>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+                    isActive
+                      ? "bg-blue-600 text-white"
+                      : "text-slate-300 hover:bg-slate-800"
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.name}</span>
                 </Link>
               );
             })}
@@ -102,14 +100,13 @@ export function Sidebar() {
 
           {/* Footer */}
           <div className="p-4 border-t border-slate-700 space-y-2">
-            <Link href="/settings">
-              <a
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
-              >
-                <Settings className="h-5 w-5" />
-                <span>Configurações</span>
-              </a>
+            <Link
+              href="/settings"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
+            >
+              <Settings className="h-5 w-5" />
+              <span>Configurações</span>
             </Link>
             <Button
               variant="ghost"
