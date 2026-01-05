@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  finance-control:
+    image: ${DOCKER_REGISTRY:-}finance-control:${VERSION:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # Database - PostgreSQL (external)
+      DATABASE_URL: ${DATABASE_URL}
+      # Authentication
+      JWT_SECRET: ${JWT_SECRET}
+      # OAuth Configuration (Manus)
+      VITE_APP_ID: ${VITE_APP_ID}
+      OAUTH_SERVER_URL: ${OAUTH_SERVER_URL:-https://manus.bot/api/oauth}
+      OWNER_OPEN_ID: ${OWNER_OPEN_ID}
+      # Optional: Forge API
+      BUILT_IN_FORGE_API_URL: ${BUILT_IN_FORGE_API_URL:-}
+      BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY:-}
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+      labels:
+        - "traefik.enable=true"
+        # HTTP Router
+        - "traefik.http.routers.finance-control.rule=Host(`${DOMAIN:-finance.example.com}`)"
+        - "traefik.http.routers.finance-control.entrypoints=websecure"
+        - "traefik.http.routers.finance-control.tls=true"
+        - "traefik.http.routers.finance-control.tls.certresolver=letsencryptresolver"
+        # Service
+        - "traefik.http.services.finance-control.loadbalancer.server.port=3000"
+        - "traefik.http.routers.finance-control.service=finance-control"
+        # Optional: HTTP to HTTPS redirect
+        - "traefik.http.routers.finance-control-http.rule=Host(`${DOMAIN:-finance.example.com}`)"
+        - "traefik.http.routers.finance-control-http.entrypoints=web"
+        - "traefik.http.routers.finance-control-http.middlewares=redirect-to-https"
+        - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:3000/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - network_swarm_public
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  network_swarm_public:
+    name: network_swarm_public
+    external: true
