@@ -52,11 +52,11 @@ export const users = pgTable("users", {
    * Use this for relations between tables.
    */
   id: serial("id").primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  /** Unique email identifier for login */
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  /** Hashed password using bcrypt */
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
   name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
   role: roleEnum("role").default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
