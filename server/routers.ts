@@ -117,7 +117,7 @@ export const appRouter = router({
           description: input.description,
           amount: input.amount,
           type: input.type,
-          date: new Date(input.date),
+          date: input.date,
           categoryId: input.categoryId,
           notes: input.notes,
         })
@@ -151,7 +151,7 @@ export const appRouter = router({
           quantity: input.quantity,
           averagePrice: input.averagePrice,
           totalCost,
-          purchaseDate: new Date(input.purchaseDate),
+          purchaseDate: input.purchaseDate,
           ticker: input.ticker,
         });
       }),
@@ -179,8 +179,8 @@ export const appRouter = router({
           name: input.name,
           type: input.type,
           targetAmount: input.targetAmount,
-          startDate: new Date(input.startDate),
-          endDate: input.endDate ? new Date(input.endDate) : undefined,
+          startDate: input.startDate,
+          endDate: input.endDate,
           categoryId: input.categoryId,
         })
       ),
@@ -231,7 +231,7 @@ export const appRouter = router({
           userId: ctx.user.id,
           description: input.description,
           amount: input.amount,
-          dueDate: new Date(input.dueDate),
+          dueDate: input.dueDate,
           contactId: input.contactId,
           categoryId: input.categoryId,
         })
@@ -258,7 +258,7 @@ export const appRouter = router({
           userId: ctx.user.id,
           description: input.description,
           amount: input.amount,
-          dueDate: new Date(input.dueDate),
+          dueDate: input.dueDate,
           contactId: input.contactId,
           categoryId: input.categoryId,
         })
@@ -285,7 +285,7 @@ export const appRouter = router({
           name: input.name,
           type: input.type,
           purchasePrice: input.purchasePrice,
-          purchaseDate: input.purchaseDate ? new Date(input.purchaseDate) : undefined,
+          purchaseDate: input.purchaseDate,
         })
       ),
   }),
@@ -315,8 +315,8 @@ export const appRouter = router({
           originalAmount: input.originalAmount,
           currentAmount: input.currentAmount,
           interestRate: input.interestRate,
-          startDate: input.startDate ? new Date(input.startDate) : undefined,
-          endDate: input.endDate ? new Date(input.endDate) : undefined,
+          startDate: input.startDate,
+          endDate: input.endDate,
         })
       ),
   }),
