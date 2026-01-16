@@ -24,6 +24,7 @@ import {
   createAsset,
   getUserLiabilities,
   createLiability,
+  getDashboardSummary,
 } from "./db";
 
 export const appRouter = router({
@@ -38,6 +39,20 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+  }),
+
+  // Dashboard
+  dashboard: router({
+    summary: protectedProcedure
+      .input(
+        z.object({
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+        }).optional()
+      )
+      .query(({ ctx, input }) =>
+        getDashboardSummary(ctx.user.id, input?.startDate, input?.endDate)
+      ),
   }),
 
   // Contas Bancárias

@@ -1,12 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import {
-  BarChart,
-  Bar,
   LineChart,
   Line,
   PieChart,
@@ -22,122 +19,66 @@ import {
 import React from "react";
 import { useState, useMemo } from "react";
 
-const COLORS = ["#10b981", "#ef4444", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4"];
+const COLORS = ["#10b981", "#ef4444", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16", "#f97316"];
+
+// Helper function to format currency
+const formatCurrency = (value: number) => {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+};
+
+// Helper function to get date range based on period
+const getDateRange = (period: string) => {
+  const end = new Date();
+  const start = new Date();
+
+  switch (period) {
+    case "week":
+      start.setDate(end.getDate() - 7);
+      break;
+    case "month":
+      start.setMonth(end.getMonth() - 1);
+      break;
+    case "quarter":
+      start.setMonth(end.getMonth() - 3);
+      break;
+    case "year":
+      start.setFullYear(end.getFullYear() - 1);
+      break;
+    default:
+      start.setMonth(end.getMonth() - 1);
+  }
+
+  return {
+    startDate: start.toISOString().split("T")[0],
+    endDate: end.toISOString().split("T")[0],
+  };
+};
+
+// Helper to format month names
+const formatMonth = (monthStr: string) => {
+  const [year, month] = monthStr.split("-");
+  const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  return monthNames[parseInt(month) - 1] || monthStr;
+};
 
 export default function Home() {
   const [period, setPeriod] = useState("month");
   const [checkedAccounts, setCheckedAccounts] = useState<number[]>([]);
 
-  const accountsQuery = trpc.accounts.list.useQuery();
-  const transactionsQuery = trpc.transactions.list.useQuery();
+  const dateRange = useMemo(() => getDateRange(period), [period]);
 
-  // Initialize checked accounts
+  const accountsQuery = trpc.accounts.list.useQuery();
+  const dashboardQuery = trpc.dashboard.summary.useQuery({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+  });
+
+  // Initialize checked accounts when accounts load
   React.useEffect(() => {
     if (accountsQuery.data && checkedAccounts.length === 0) {
       setCheckedAccounts(accountsQuery.data.map((a) => a.id));
     }
   }, [accountsQuery.data]);
-
-  // Mock data for goals by category
-  const goalsData = [
-    { name: "Alimentação", spent: 450, budget: 600, percentage: 75 },
-    { name: "Transporte", spent: 280, budget: 400, percentage: 70 },
-    { name: "Saúde", spent: 150, budget: 300, percentage: 50 },
-  ];
-
-  // Mock data for goals by center
-  const goalsByCenterData = [
-    { center: "Sem centro", spent: 450, budget: 600, percentage: 75 },
-    { center: "Casa", spent: 280, budget: 400, percentage: 70 },
-    { center: "Empresa", spent: 150, budget: 300, percentage: 50 },
-  ];
-
-  // Mock data for income goals by center
-  const incomeGoalsByCenterData = [
-    { center: "Sem centro", goal: 5000, realized: 4500, residue: 500 },
-    { center: "Casa", goal: 2000, realized: 1800, residue: 200 },
-    { center: "Empresa", goal: 3000, realized: 3200, residue: -200 },
-  ];
-
-  // Mock data for cash flow (monthly)
-  const cashFlowData = [
-    { month: "Jan", balance: 2500, "Saldo em 31 Jan": 2500 },
-    { month: "Fev", balance: 2100, "Saldo em 28 Fev": 2100 },
-    { month: "Mar", balance: 3200, "Saldo em 31 Mar": 3200 },
-    { month: "Abr", balance: 2800, "Saldo em 30 Abr": 2800 },
-    { month: "Mai", balance: 3100, "Saldo em 31 Mai": 3100 },
-    { month: "Jun", balance: 2900, "Saldo em 30 Jun": 2900 },
-  ];
-
-  // Mock data for expenses by center
-  const expensesByCenterData = [
-    { name: "Sem centro", value: 96.99, percentage: 97 },
-    { name: "Casa", value: 2.17 },
-    { name: "Telefonia", value: 0.89 },
-  ];
-
-  // Mock data for cash results with table format
-  const cashResultsData = [
-    { account: "Conta Corrente", entries: 8000, exits: 5000, result: 3000 },
-    { account: "Banco Inter", entries: 6000, exits: 3500, result: 2500 },
-    { account: "Conta C6 PJ", entries: 5000, exits: 2000, result: 3000 },
-  ];
-
-  // Mock data for expenses by category
-  const expensesByCategoryData = [
-    { name: "Pessoais", value: 58.73 },
-    { name: "Cartão de Crédito", value: 18.87 },
-    { name: "Empresa", value: 9.69 },
-    { name: "Transferência para Poupança", value: 7.57 },
-    { name: "Casa", value: 4.47 },
-    { name: "Automóvel", value: 3.86 },
-    { name: "Alimentação", value: 3.86 },
-    { name: "Telefonia", value: 0.89 },
-  ];
-
-  // Mock data for income by category
-  const incomeData = [
-    { name: "Salário", value: 5000 },
-    { name: "Freelance", value: 1200 },
-    { name: "Investimentos", value: 800 },
-  ];
-
-  // Mock data for income by center
-  const incomeByCenterData = [
-    { name: "Sem centro", value: 5000 },
-    { name: "Casa", value: 1200 },
-    { name: "Empresa", value: 800 },
-  ];
-
-  // Mock data for balance sheet
-  const balanceSheetData = {
-    ativo: {
-      disponivel: 4000,
-      realisavel: 2000,
-    },
-    passivo: {
-      devedor: 1500,
-      exigivel: 1000,
-    },
-  };
-
-  // Calculate saldos de caixa totals
-  const saldosCaixa = useMemo(() => {
-    if (!accountsQuery.data) return { confirmado: 0, projetado: 0 };
-
-    return accountsQuery.data
-      .filter((a) => checkedAccounts.includes(a.id))
-      .reduce(
-        (acc, account) => {
-          const balance = parseFloat(account.balance as string) || 0;
-          return {
-            confirmado: acc.confirmado + balance,
-            projetado: acc.projetado + balance * 1.1, // Mock: 10% more projected
-          };
-        },
-        { confirmado: 0, projetado: 0 }
-      );
-  }, [accountsQuery.data, checkedAccounts]);
 
   const handleAccountToggle = (accountId: number) => {
     setCheckedAccounts((prev) =>
@@ -145,7 +86,62 @@ export default function Home() {
     );
   };
 
-  const recentTransactions = transactionsQuery.data?.slice(0, 5) || [];
+  // Calculate totals from checked accounts
+  const saldosCaixa = useMemo(() => {
+    if (!accountsQuery.data) return { confirmado: 0, projetado: 0 };
+
+    const checkedAccountsData = accountsQuery.data.filter((a) => checkedAccounts.includes(a.id));
+    const confirmado = checkedAccountsData.reduce((acc, account) => {
+      return acc + (parseFloat(account.balance as string) || 0);
+    }, 0);
+
+    return {
+      confirmado,
+      projetado: confirmado, // Projetado = confirmado (sem transações pendentes)
+    };
+  }, [accountsQuery.data, checkedAccounts]);
+
+  // Calculate totals for expenses by category chart
+  const expensesTotal = useMemo(() => {
+    if (!dashboardQuery.data?.expensesByCategory) return 0;
+    return dashboardQuery.data.expensesByCategory.reduce((acc, e) => acc + e.value, 0);
+  }, [dashboardQuery.data?.expensesByCategory]);
+
+  const expensesByCategoryWithPercentage = useMemo(() => {
+    if (!dashboardQuery.data?.expensesByCategory || expensesTotal === 0) return [];
+    return dashboardQuery.data.expensesByCategory.map((e) => ({
+      ...e,
+      percentage: (e.value / expensesTotal) * 100,
+    }));
+  }, [dashboardQuery.data?.expensesByCategory, expensesTotal]);
+
+  // Calculate totals for income by category
+  const incomeTotal = useMemo(() => {
+    if (!dashboardQuery.data?.incomeByCategory) return 0;
+    return dashboardQuery.data.incomeByCategory.reduce((acc, i) => acc + i.value, 0);
+  }, [dashboardQuery.data?.incomeByCategory]);
+
+  // Calculate patrimônio total
+  const patrimonioTotal = useMemo(() => {
+    if (!dashboardQuery.data) return 0;
+    return (
+      dashboardQuery.data.totalBalance +
+      dashboardQuery.data.totalInvestments +
+      dashboardQuery.data.totalAssets -
+      dashboardQuery.data.totalLiabilities
+    );
+  }, [dashboardQuery.data]);
+
+  // Loading state
+  if (dashboardQuery.isLoading || accountsQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Carregando dados...</div>
+      </div>
+    );
+  }
+
+  const data = dashboardQuery.data;
 
   return (
     <div className="space-y-6">
@@ -175,8 +171,8 @@ export default function Home() {
             <CardTitle className="text-sm font-medium">Patrimônio Total</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">R$ 4.000,00</p>
-            <p className="text-xs text-muted-foreground">Contas + Investimentos</p>
+            <p className="text-2xl font-bold">{formatCurrency(patrimonioTotal)}</p>
+            <p className="text-xs text-muted-foreground">Contas + Investimentos - Passivos</p>
           </CardContent>
         </Card>
 
@@ -185,7 +181,7 @@ export default function Home() {
             <CardTitle className="text-sm font-medium">Contas Bancárias</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">R$ 4.000,00</p>
+            <p className="text-2xl font-bold">{formatCurrency(data?.totalBalance || 0)}</p>
             <p className="text-xs text-muted-foreground">{accountsQuery.data?.length || 0} contas</p>
           </CardContent>
         </Card>
@@ -195,18 +191,18 @@ export default function Home() {
             <CardTitle className="text-sm font-medium">Investimentos</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">R$ 0,00</p>
-            <p className="text-xs text-muted-foreground">12 ativos</p>
+            <p className="text-2xl font-bold">{formatCurrency(data?.totalInvestments || 0)}</p>
+            <p className="text-xs text-muted-foreground">Total investido</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Metas</CardTitle>
+            <CardTitle className="text-sm font-medium">Metas Ativas</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">12</p>
-            <p className="text-xs text-muted-foreground">Metas ativas</p>
+            <p className="text-2xl font-bold">{data?.activeGoals || 0}</p>
+            <p className="text-xs text-muted-foreground">Metas em andamento</p>
           </CardContent>
         </Card>
       </div>
@@ -215,111 +211,116 @@ export default function Home() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column */}
         <div className="space-y-6">
-          {/* Goals by Category */}
+          {/* Goals Progress */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Metas de despesas</CardTitle>
-              <CardDescription>Situação projetada</CardDescription>
+              <CardTitle className="text-base">Progresso das Metas</CardTitle>
+              <CardDescription>Situação atual</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {goalsData.map((goal) => (
-                <div key={goal.name} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">{goal.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      R$ {goal.spent} / R$ {goal.budget}
-                    </span>
+              {data?.goalsWithProgress && data.goalsWithProgress.length > 0 ? (
+                data.goalsWithProgress.slice(0, 5).map((goal) => (
+                  <div key={goal.id} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">{goal.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
+                      </span>
+                    </div>
+                    <Progress value={goal.percentage} className="h-2" />
                   </div>
-                  <Progress value={goal.percentage} className="h-2" />
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma meta cadastrada</p>
+              )}
             </CardContent>
           </Card>
 
-          {/* Goals by Center */}
+          {/* Cash Flow Chart */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Metas de despesas por centro</CardTitle>
-              <CardDescription>Situação projetada</CardDescription>
+              <CardTitle className="text-base">Fluxo de Caixa</CardTitle>
+              <CardDescription>Últimos 6 meses</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {goalsByCenterData.map((goal) => (
-                <div key={goal.center} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">{goal.center}</span>
-                    <span className="text-xs text-muted-foreground">
-                      R$ {goal.spent} / R$ {goal.budget}
-                    </span>
+              {data?.transactionsByMonth && data.transactionsByMonth.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={data.transactionsByMonth}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" tickFormatter={formatMonth} />
+                      <YAxis />
+                      <Tooltip
+                        formatter={(value: number) => formatCurrency(value)}
+                        labelFormatter={formatMonth}
+                      />
+                      <Legend />
+                      <Line type="monotone" dataKey="income" name="Receitas" stroke="#10b981" />
+                      <Line type="monotone" dataKey="expense" name="Despesas" stroke="#ef4444" />
+                      <Line type="monotone" dataKey="balance" name="Saldo" stroke="#3b82f6" strokeDasharray="5 5" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-2 text-sm border-t pt-3">
+                    {data.transactionsByMonth.slice(-3).map((item) => (
+                      <div key={item.month} className="flex justify-between">
+                        <span>Saldo em {formatMonth(item.month)}:</span>
+                        <span className={`font-bold ${item.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {formatCurrency(item.balance)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <Progress value={goal.percentage} className="h-2" />
-                </div>
-              ))}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">Sem dados de transações</p>
+              )}
             </CardContent>
           </Card>
 
-          {/* Cash Flow */}
+          {/* Expenses by Category */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Fluxo de caixa</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={cashFlowData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="balance" stroke="#ef4444" dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-              <div className="space-y-2 text-sm">
-                {cashFlowData.map((item, idx) => (
-                  <div key={idx} className="flex justify-between">
-                    <span>Saldo em {item.month}:</span>
-                    <span className="font-bold text-green-600">R$ {item.balance.toLocaleString("pt-BR")}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Expenses by Center */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Despesas por centro</CardTitle>
-              <CardDescription>Situação projetada</CardDescription>
+              <CardTitle className="text-base">Despesas por Categoria</CardTitle>
+              <CardDescription>Período selecionado</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={expensesByCenterData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    dataKey="percentage"
-                  >
-                    {expensesByCenterData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              {expensesByCategoryWithPercentage.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={expensesByCategoryWithPercentage}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        dataKey="value"
+                      >
+                        {expensesByCategoryWithPercentage.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="mt-4 space-y-2">
+                    {expensesByCategoryWithPercentage.map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: item.color || COLORS[idx % COLORS.length] }}
+                          />
+                          <span>{item.name}</span>
+                        </div>
+                        <span className="font-medium">{item.percentage.toFixed(1)}%</span>
+                      </div>
                     ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-4 space-y-2">
-                {expensesByCenterData.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-                      />
-                      <span>{item.name}</span>
-                    </div>
-                    <span className="font-medium">{item.percentage || 0}%</span>
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">Sem despesas no período</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -329,21 +330,17 @@ export default function Home() {
           {/* Cash Balances */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Saldos de caixa</CardTitle>
+              <CardTitle className="text-base">Saldos de Caixa</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2 text-sm mb-4">
                 <div>
                   <p className="text-muted-foreground">Confirmado</p>
-                  <p className="text-lg font-bold text-green-600">
-                    R$ {saldosCaixa.confirmado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </p>
+                  <p className="text-lg font-bold text-green-600">{formatCurrency(saldosCaixa.confirmado)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Projetado</p>
-                  <p className="text-lg font-bold text-blue-600">
-                    R$ {saldosCaixa.projetado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </p>
+                  <p className="text-lg font-bold text-blue-600">{formatCurrency(saldosCaixa.projetado)}</p>
                 </div>
               </div>
 
@@ -357,25 +354,24 @@ export default function Home() {
                     <div className="flex-1">
                       <p className="text-sm font-medium">{account.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        R$ {parseFloat(account.balance as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        {formatCurrency(parseFloat(account.balance as string) || 0)}
                       </p>
                     </div>
                   </div>
                 ))}
+                {(!accountsQuery.data || accountsQuery.data.length === 0) && (
+                  <p className="text-sm text-muted-foreground text-center py-2">Nenhuma conta cadastrada</p>
+                )}
               </div>
 
               <div className="border-t pt-3 mt-3">
                 <div className="flex justify-between mb-2">
                   <span className="font-medium">Total Confirmado</span>
-                  <span className="font-bold text-green-600">
-                    R$ {saldosCaixa.confirmado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </span>
+                  <span className="font-bold text-green-600">{formatCurrency(saldosCaixa.confirmado)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Total Projetado</span>
-                  <span className="font-bold text-blue-600">
-                    R$ {saldosCaixa.projetado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </span>
+                  <span className="font-bold text-blue-600">{formatCurrency(saldosCaixa.projetado)}</span>
                 </div>
               </div>
             </CardContent>
@@ -384,56 +380,50 @@ export default function Home() {
           {/* Credit Cards */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Cartões de crédito</CardTitle>
+              <CardTitle className="text-base">Cartões de Crédito</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-3">
-                <div className="p-3 border rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded bg-orange-500" />
-                    <span className="text-sm font-medium">C$ Bank</span>
+              {data?.creditCards && data.creditCards.length > 0 ? (
+                data.creditCards.map((card) => (
+                  <div key={card.id} className="p-3 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded bg-purple-500" />
+                      <span className="text-sm font-medium">{card.name}</span>
+                    </div>
+                    {card.bankName && (
+                      <p className="text-xs text-muted-foreground mb-1">{card.bankName}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">Saldo</p>
+                    <p className={`text-sm font-bold ${card.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {formatCurrency(card.balance)}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Fatura 25/01/2025 (Fechamento 15/01/2025)
-                  </p>
-                  <p className="text-xs text-muted-foreground">Disponível</p>
-                  <p className="text-sm font-bold text-green-600 mt-2">R$ 2.500,00</p>
-                </div>
-
-                <div className="p-3 border rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded bg-purple-500" />
-                    <span className="text-sm font-medium">Nubank</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Fatura 09/01/2026 (Fechamento 02/01/2026)
-                  </p>
-                  <p className="text-xs text-muted-foreground">Disponível</p>
-                  <p className="text-sm font-bold text-green-600 mt-2">R$ 1.800,00</p>
-                </div>
-              </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhum cartão cadastrado</p>
+              )}
             </CardContent>
           </Card>
 
           {/* Recent Transactions */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Últimos lançamentos</CardTitle>
+              <CardTitle className="text-base">Últimos Lançamentos</CardTitle>
             </CardHeader>
             <CardContent>
-              {recentTransactions.length > 0 ? (
+              {data?.recentTransactions && data.recentTransactions.length > 0 ? (
                 <div className="space-y-2">
-                  {recentTransactions.map((tx) => (
+                  {data.recentTransactions.slice(0, 5).map((tx) => (
                     <div key={tx.id} className="flex justify-between items-center py-2 border-b last:border-0">
                       <div>
                         <p className="text-sm font-medium">{tx.description}</p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(tx.date).toLocaleDateString("pt-BR")}
+                          {tx.categoryName && ` • ${tx.categoryName}`}
                         </p>
                       </div>
                       <p className={`text-sm font-bold ${tx.type === "income" ? "text-green-600" : "text-red-600"}`}>
-                        {tx.type === "income" ? "+" : "-"} R${" "}
-                        {parseFloat(tx.amount as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        {tx.type === "income" ? "+" : "-"} {formatCurrency(tx.amount)}
                       </p>
                     </div>
                   ))}
@@ -447,40 +437,49 @@ export default function Home() {
 
         {/* Right Column */}
         <div className="space-y-6">
-          {/* Cash Results */}
+          {/* Cash Results by Account */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Resultados de caixa</CardTitle>
+              <CardTitle className="text-base">Resultados de Caixa</CardTitle>
+              <CardDescription>Por conta no período</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-2">Conta</th>
-                      <th className="text-right py-2 px-2">Entradas</th>
-                      <th className="text-right py-2 px-2">Saídas</th>
-                      <th className="text-right py-2 px-2">Resultado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cashResultsData.map((item, idx) => (
-                      <tr key={idx} className="border-b last:border-0">
-                        <td className="py-2 px-2">{item.account}</td>
-                        <td className="text-right py-2 px-2 text-green-600 font-medium">
-                          R$ {item.entries.toLocaleString("pt-BR")}
-                        </td>
-                        <td className="text-right py-2 px-2 text-red-600 font-medium">
-                          R$ {item.exits.toLocaleString("pt-BR")}
-                        </td>
-                        <td className="text-right py-2 px-2 font-bold text-blue-600">
-                          R$ {item.result.toLocaleString("pt-BR")}
-                        </td>
+              {data?.cashResultsByAccount && data.cashResultsByAccount.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 px-2">Conta</th>
+                        <th className="text-right py-2 px-2">Entradas</th>
+                        <th className="text-right py-2 px-2">Saídas</th>
+                        <th className="text-right py-2 px-2">Resultado</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {data.cashResultsByAccount.map((item) => (
+                        <tr key={item.accountId} className="border-b last:border-0">
+                          <td className="py-2 px-2">{item.accountName}</td>
+                          <td className="text-right py-2 px-2 text-green-600 font-medium">
+                            {formatCurrency(item.income)}
+                          </td>
+                          <td className="text-right py-2 px-2 text-red-600 font-medium">
+                            {formatCurrency(item.expense)}
+                          </td>
+                          <td
+                            className={`text-right py-2 px-2 font-bold ${
+                              item.result >= 0 ? "text-blue-600" : "text-red-600"
+                            }`}
+                          >
+                            {formatCurrency(item.result)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Sem movimentações no período</p>
+              )}
             </CardContent>
           </Card>
 
@@ -495,19 +494,22 @@ export default function Home() {
                   <h4 className="font-bold text-green-600 mb-2">Ativo</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span>Disponível</span>
-                      <span className="font-medium">R$ {balanceSheetData.ativo.disponivel.toLocaleString("pt-BR")}</span>
+                      <span>Contas</span>
+                      <span className="font-medium">{formatCurrency(data?.totalBalance || 0)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Realizável</span>
-                      <span className="font-medium">R$ {balanceSheetData.ativo.realisavel.toLocaleString("pt-BR")}</span>
+                      <span>Investimentos</span>
+                      <span className="font-medium">{formatCurrency(data?.totalInvestments || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Outros Ativos</span>
+                      <span className="font-medium">{formatCurrency(data?.totalAssets || 0)}</span>
                     </div>
                     <div className="flex justify-between border-t pt-2 font-bold">
                       <span>Total</span>
                       <span className="text-green-600">
-                        R${" "}
-                        {(balanceSheetData.ativo.disponivel + balanceSheetData.ativo.realisavel).toLocaleString(
-                          "pt-BR"
+                        {formatCurrency(
+                          (data?.totalBalance || 0) + (data?.totalInvestments || 0) + (data?.totalAssets || 0)
                         )}
                       </span>
                     </div>
@@ -518,64 +520,24 @@ export default function Home() {
                   <h4 className="font-bold text-red-600 mb-2">Passivo</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span>Devedor</span>
-                      <span className="font-medium">R$ {balanceSheetData.passivo.devedor.toLocaleString("pt-BR")}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Exigível</span>
-                      <span className="font-medium">R$ {balanceSheetData.passivo.exigivel.toLocaleString("pt-BR")}</span>
+                      <span>Dívidas</span>
+                      <span className="font-medium">{formatCurrency(data?.totalLiabilities || 0)}</span>
                     </div>
                     <div className="flex justify-between border-t pt-2 font-bold">
                       <span>Total</span>
-                      <span className="text-red-600">
-                        R${" "}
-                        {(balanceSheetData.passivo.devedor + balanceSheetData.passivo.exigivel).toLocaleString(
-                          "pt-BR"
-                        )}
-                      </span>
+                      <span className="text-red-600">{formatCurrency(data?.totalLiabilities || 0)}</span>
                     </div>
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Expenses by Category */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Despesas por categoria</CardTitle>
-              <CardDescription>Situação projetada</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={expensesByCategoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    dataKey="value"
-                  >
-                    {expensesByCategoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-4 space-y-1 max-h-40 overflow-y-auto">
-                {expensesByCategoryData.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-                      />
-                      <span>{item.name}</span>
-                    </div>
-                    <span className="font-medium">{item.value.toFixed(2)}%</span>
-                  </div>
-                ))}
+              <div className="border-t pt-3">
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Patrimônio Líquido</span>
+                  <span className={patrimonioTotal >= 0 ? "text-green-600" : "text-red-600"}>
+                    {formatCurrency(patrimonioTotal)}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -583,125 +545,53 @@ export default function Home() {
           {/* Income by Category */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Receitas por categoria</CardTitle>
+              <CardTitle className="text-base">Receitas por Categoria</CardTitle>
+              <CardDescription>Período selecionado</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie
-                    data={incomeData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    dataKey="value"
-                  >
-                    {incomeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              {data?.incomeByCategory && data.incomeByCategory.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <PieChart>
+                      <Pie
+                        data={data.incomeByCategory}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={60}
+                        dataKey="value"
+                      >
+                        {data.incomeByCategory.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="mt-4 space-y-2">
+                    {data.incomeByCategory.map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: item.color || COLORS[idx % COLORS.length] }}
+                          />
+                          <span>{item.name}</span>
+                        </div>
+                        <span className="font-bold text-green-600">{formatCurrency(item.value)}</span>
+                      </div>
                     ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-4 space-y-2">
-                {incomeData.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-                      />
-                      <span>{item.name}</span>
-                    </div>
-                    <span className="font-bold text-green-600">R$ {item.value.toLocaleString("pt-BR")}</span>
                   </div>
-                ))}
-              </div>
-              <div className="border-t mt-3 pt-3">
-                <div className="flex justify-between font-bold">
-                  <span>Total</span>
-                  <span className="text-green-600">R$ 7.000,00</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Income by Center */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Receitas por centro</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie
-                    data={incomeByCenterData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    dataKey="value"
-                  >
-                    {incomeByCenterData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-4 space-y-2">
-                {incomeByCenterData.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-                      />
-                      <span>{item.name}</span>
+                  <div className="border-t mt-3 pt-3">
+                    <div className="flex justify-between font-bold">
+                      <span>Total</span>
+                      <span className="text-green-600">{formatCurrency(incomeTotal)}</span>
                     </div>
-                    <span className="font-bold text-green-600">R$ {item.value.toLocaleString("pt-BR")}</span>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Income Goals by Center */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Metas de receita por centro</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-2">Centro</th>
-                      <th className="text-right py-2 px-2">Meta</th>
-                      <th className="text-right py-2 px-2">Realizado</th>
-                      <th className="text-right py-2 px-2">Resíduo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {incomeGoalsByCenterData.map((item, idx) => (
-                      <tr key={idx} className="border-b last:border-0">
-                        <td className="py-2 px-2">{item.center}</td>
-                        <td className="text-right py-2 px-2 font-medium">
-                          R$ {item.goal.toLocaleString("pt-BR")}
-                        </td>
-                        <td className="text-right py-2 px-2 text-green-600 font-medium">
-                          R$ {item.realized.toLocaleString("pt-BR")}
-                        </td>
-                        <td
-                          className={`text-right py-2 px-2 font-bold ${
-                            item.residue >= 0 ? "text-green-600" : "text-red-600"
-                          }`}
-                        >
-                          R$ {item.residue.toLocaleString("pt-BR")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">Sem receitas no período</p>
+              )}
             </CardContent>
           </Card>
         </div>
