@@ -7,6 +7,7 @@ import { registerAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { getDb } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -30,12 +31,24 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  // Test database connection at startup
+  console.log("[Server] Testing database connection...");
+  const db = await getDb();
+  if (db) {
+    console.log("[Server] Database connected successfully!");
+  } else {
+    console.warn("[Server] WARNING: Database not connected! Some features may not work.");
+    console.warn("[Server] Make sure DATABASE_URL environment variable is set correctly.");
+  }
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // Health check endpoint for Docker/Kubernetes
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", timestamp: Date.now() });
+  app.get("/api/health", async (_req, res) => {
+    const dbConnected = (await getDb()) !== null;
+    res.json({ status: "ok", database: dbConnected ? "connected" : "disconnected", timestamp: Date.now() });
   });
 
   // Auth routes (login, register)
