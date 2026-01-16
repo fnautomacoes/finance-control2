@@ -40,6 +40,9 @@ FROM node:20-alpine AS production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 appuser
 
+# Install wget for health checks
+RUN apk add --no-cache wget
+
 WORKDIR /app
 
 # Install pnpm for production dependencies
