@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
+import Login from "@/pages/Login";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -11,7 +12,7 @@ import Transactions from "./pages/Transactions";
 import Investments from "./pages/Investments";
 import Categories from "./pages/Categories";
 
-function Router() {
+function AppRoutes() {
   return (
     <MainLayout>
       <Switch>
@@ -25,6 +26,17 @@ function Router() {
         <Route component={NotFound} />
       </Switch>
     </MainLayout>
+  );
+}
+
+function Router() {
+  return (
+    <Switch>
+      {/* Login page without MainLayout */}
+      <Route path={"/login"} component={Login} />
+      {/* All other routes with MainLayout */}
+      <Route component={AppRoutes} />
+    </Switch>
   );
 }
 
