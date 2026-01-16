@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
@@ -24,6 +24,7 @@ import {
   InsertAsset,
   liabilities,
   InsertLiability,
+  costCenters,
 } from "../drizzle/schema";
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: pg.Pool | null = null;
@@ -274,4 +275,254 @@ export async function createLiability(data: InsertLiability) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.insert(liabilities).values(data);
+}
+
+/**
+ * Cost Centers
+ */
+export async function getUserCostCenters(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(costCenters).where(eq(costCenters.userId, userId));
+}
+
+/**
+ * Dashboard aggregations
+ */
+export async function getDashboardSummary(userId: number, startDate?: string, endDate?: string) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      totalBalance: 0,
+      totalInvestments: 0,
+      totalAssets: 0,
+      totalLiabilities: 0,
+      activeGoals: 0,
+      expensesByCategory: [],
+      incomeByCategory: [],
+      transactionsByMonth: [],
+      cashResultsByAccount: [],
+      recentTransactions: [],
+    };
+  }
+
+  // Get date range (default: last 30 days)
+  const end = endDate || new Date().toISOString().split("T")[0];
+  const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  // Total balance from accounts
+  const accountsData = await db
+    .select({
+      totalBalance: sql<string>`COALESCE(SUM(CAST(${accounts.balance} AS DECIMAL)), 0)`,
+    })
+    .from(accounts)
+    .where(eq(accounts.userId, userId));
+
+  // Total investments value
+  const investmentsData = await db
+    .select({
+      totalValue: sql<string>`COALESCE(SUM(CAST(${investments.totalCost} AS DECIMAL)), 0)`,
+    })
+    .from(investments)
+    .where(eq(investments.userId, userId));
+
+  // Total assets value
+  const assetsData = await db
+    .select({
+      totalValue: sql<string>`COALESCE(SUM(CAST(${assets.currentValue} AS DECIMAL)), 0)`,
+    })
+    .from(assets)
+    .where(eq(assets.userId, userId));
+
+  // Total liabilities
+  const liabilitiesData = await db
+    .select({
+      totalValue: sql<string>`COALESCE(SUM(CAST(${liabilities.currentAmount} AS DECIMAL)), 0)`,
+    })
+    .from(liabilities)
+    .where(eq(liabilities.userId, userId));
+
+  // Active goals count
+  const goalsData = await db
+    .select({
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(goals)
+    .where(and(eq(goals.userId, userId), eq(goals.isActive, true)));
+
+  // Expenses by category
+  const expensesByCat = await db
+    .select({
+      categoryId: transactions.categoryId,
+      categoryName: categories.name,
+      categoryColor: categories.color,
+      total: sql<string>`SUM(CAST(${transactions.amount} AS DECIMAL))`,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        eq(transactions.type, "expense"),
+        gte(transactions.date, start),
+        lte(transactions.date, end)
+      )
+    )
+    .groupBy(transactions.categoryId, categories.name, categories.color);
+
+  // Income by category
+  const incomeByCat = await db
+    .select({
+      categoryId: transactions.categoryId,
+      categoryName: categories.name,
+      categoryColor: categories.color,
+      total: sql<string>`SUM(CAST(${transactions.amount} AS DECIMAL))`,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        eq(transactions.type, "income"),
+        gte(transactions.date, start),
+        lte(transactions.date, end)
+      )
+    )
+    .groupBy(transactions.categoryId, categories.name, categories.color);
+
+  // Transactions by month (last 6 months)
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const transactionsByMonth = await db
+    .select({
+      month: sql<string>`TO_CHAR(${transactions.date}::date, 'YYYY-MM')`,
+      income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN CAST(${transactions.amount} AS DECIMAL) ELSE 0 END), 0)`,
+      expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN CAST(${transactions.amount} AS DECIMAL) ELSE 0 END), 0)`,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        gte(transactions.date, sixMonthsAgo.toISOString().split("T")[0])
+      )
+    )
+    .groupBy(sql`TO_CHAR(${transactions.date}::date, 'YYYY-MM')`)
+    .orderBy(sql`TO_CHAR(${transactions.date}::date, 'YYYY-MM')`);
+
+  // Cash results by account
+  const cashResultsByAccount = await db
+    .select({
+      accountId: transactions.accountId,
+      accountName: accounts.name,
+      income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN CAST(${transactions.amount} AS DECIMAL) ELSE 0 END), 0)`,
+      expense: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN CAST(${transactions.amount} AS DECIMAL) ELSE 0 END), 0)`,
+    })
+    .from(transactions)
+    .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        gte(transactions.date, start),
+        lte(transactions.date, end)
+      )
+    )
+    .groupBy(transactions.accountId, accounts.name);
+
+  // Recent transactions (last 10)
+  const recentTx = await db
+    .select({
+      id: transactions.id,
+      description: transactions.description,
+      amount: transactions.amount,
+      type: transactions.type,
+      date: transactions.date,
+      categoryName: categories.name,
+      accountName: accounts.name,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+    .where(eq(transactions.userId, userId))
+    .orderBy(desc(transactions.date), desc(transactions.id))
+    .limit(10);
+
+  // Credit card accounts with their info
+  const creditCards = await db
+    .select()
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.type, "credit_card")));
+
+  // Goals with progress
+  const goalsWithProgress = await db
+    .select({
+      id: goals.id,
+      name: goals.name,
+      type: goals.type,
+      targetAmount: goals.targetAmount,
+      currentAmount: goals.currentAmount,
+      categoryId: goals.categoryId,
+      categoryName: categories.name,
+    })
+    .from(goals)
+    .leftJoin(categories, eq(goals.categoryId, categories.id))
+    .where(and(eq(goals.userId, userId), eq(goals.isActive, true)));
+
+  return {
+    totalBalance: parseFloat(accountsData[0]?.totalBalance || "0"),
+    totalInvestments: parseFloat(investmentsData[0]?.totalValue || "0"),
+    totalAssets: parseFloat(assetsData[0]?.totalValue || "0"),
+    totalLiabilities: parseFloat(liabilitiesData[0]?.totalValue || "0"),
+    activeGoals: Number(goalsData[0]?.count || 0),
+    expensesByCategory: expensesByCat.map((e) => ({
+      categoryId: e.categoryId,
+      name: e.categoryName || "Sem categoria",
+      color: e.categoryColor || "#6b7280",
+      value: parseFloat(e.total || "0"),
+    })),
+    incomeByCategory: incomeByCat.map((i) => ({
+      categoryId: i.categoryId,
+      name: i.categoryName || "Sem categoria",
+      color: i.categoryColor || "#10b981",
+      value: parseFloat(i.total || "0"),
+    })),
+    transactionsByMonth: transactionsByMonth.map((t) => ({
+      month: t.month,
+      income: parseFloat(t.income || "0"),
+      expense: parseFloat(t.expense || "0"),
+      balance: parseFloat(t.income || "0") - parseFloat(t.expense || "0"),
+    })),
+    cashResultsByAccount: cashResultsByAccount.map((c) => ({
+      accountId: c.accountId,
+      accountName: c.accountName,
+      income: parseFloat(c.income || "0"),
+      expense: parseFloat(c.expense || "0"),
+      result: parseFloat(c.income || "0") - parseFloat(c.expense || "0"),
+    })),
+    recentTransactions: recentTx.map((t) => ({
+      id: t.id,
+      description: t.description,
+      amount: parseFloat(t.amount as string),
+      type: t.type,
+      date: t.date,
+      categoryName: t.categoryName,
+      accountName: t.accountName,
+    })),
+    creditCards: creditCards.map((cc) => ({
+      id: cc.id,
+      name: cc.name,
+      bankName: cc.bankName,
+      balance: parseFloat(cc.balance as string || "0"),
+    })),
+    goalsWithProgress: goalsWithProgress.map((g) => ({
+      id: g.id,
+      name: g.name,
+      type: g.type,
+      targetAmount: parseFloat(g.targetAmount as string || "0"),
+      currentAmount: parseFloat(g.currentAmount as string || "0"),
+      categoryName: g.categoryName,
+      percentage: g.targetAmount
+        ? Math.min(100, (parseFloat(g.currentAmount as string || "0") / parseFloat(g.targetAmount as string)) * 100)
+        : 0,
+    })),
+  };
 }
