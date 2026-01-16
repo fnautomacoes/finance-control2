@@ -20,20 +20,25 @@ export function registerAuthRoutes(app: Express) {
     }
 
     try {
+      console.log("[Auth] Attempting registration for:", email);
+
       // Check if user already exists
       const existingUser = await db.getUserByEmail(email);
       if (existingUser) {
+        console.log("[Auth] User already exists:", email);
         res.status(400).json({ error: "Email already registered" });
         return;
       }
 
       // Hash password and create user
+      console.log("[Auth] Creating user...");
       const passwordHash = await authService.hashPassword(password);
       const user = await db.createUser({
         email,
         passwordHash,
         name: name || null,
       });
+      console.log("[Auth] User created successfully:", user.id);
 
       // Create session token
       const sessionToken = await authService.createSessionToken(user, {

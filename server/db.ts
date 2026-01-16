@@ -1,5 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import {
   InsertUser,
   users,
@@ -25,17 +26,37 @@ import {
   InsertLiability,
 } from "../drizzle/schema";
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: pg.Pool | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      console.log("[Database] Connecting to PostgreSQL...");
+      _pool = new pg.Pool({
+        connectionString: process.env.DATABASE_URL,
+        max: 10,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      });
+
+      // Test the connection
+      const client = await _pool.connect();
+      console.log("[Database] Connection successful!");
+      client.release();
+
+      _db = drizzle(_pool);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.error("[Database] Failed to connect:", error);
       _db = null;
+      _pool = null;
     }
   }
+
+  if (!_db) {
+    console.warn("[Database] Database not available. DATABASE_URL:", process.env.DATABASE_URL ? "set" : "not set");
+  }
+
   return _db;
 }
 
@@ -117,7 +138,7 @@ export async function getAccountById(accountId: number, userId: number) {
   const result = await db
     .select()
     .from(accounts)
-    .where(eq(accounts.id, accountId) && eq(accounts.userId, userId))
+    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
     .limit(1);
   return result[0] || null;
 }
@@ -147,7 +168,7 @@ export async function getTransactionsByAccount(accountId: number, userId: number
   return db
     .select()
     .from(transactions)
-    .where(eq(transactions.accountId, accountId) && eq(transactions.userId, userId));
+    .where(and(eq(transactions.accountId, accountId), eq(transactions.userId, userId)));
 }
 
 /**
