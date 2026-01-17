@@ -5,11 +5,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Edit2, TrendingUp, PieChart as PieChartIcon, Percent, Building2, Download, Printer, Maximize2 } from "lucide-react";
 import { exportToCSV, printPage, toggleFullscreen, formatCurrencyForExport, formatDateForExport } from "@/lib/export-utils";
 import { toast } from "sonner";
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+
+type InvestmentType = "stock" | "etf" | "fund" | "fii" | "bond" | "cdb" | "lci_lca" | "crypto" | "real_estate" | "other";
+
+type Investment = {
+  id: number;
+  accountId: number;
+  name: string;
+  ticker?: string | null;
+  type: InvestmentType;
+  quantity: string;
+  averagePrice: string;
+  totalCost: string;
+  currentValue?: string | null;
+  purchaseDate: string;
+  cdiPercentage?: string | null;
+  fixedRate?: string | null;
+  maturityDate?: string | null;
+  institution?: string | null;
+};
 
 // Função para calcular rendimento CDI
 const CDI_ANNUAL_RATE = 0.1315; // 13.15% ao ano (taxa CDI aproximada)
@@ -43,15 +63,31 @@ function calculateCdiYield(
 
 export default function Investments() {
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null);
   const [formData, setFormData] = useState({
     accountId: 1,
     name: "",
     ticker: "",
-    type: "stock" as "stock" | "etf" | "fund" | "fii" | "bond" | "cdb" | "lci_lca" | "crypto" | "real_estate" | "other",
+    type: "stock" as InvestmentType,
     quantity: "",
     averagePrice: "",
     purchaseDate: new Date().toISOString().split("T")[0],
     // Campos CDI
+    cdiPercentage: "100",
+    fixedRate: "",
+    maturityDate: "",
+    institution: "",
+  });
+  const [editFormData, setEditFormData] = useState({
+    accountId: 1,
+    name: "",
+    ticker: "",
+    type: "stock" as InvestmentType,
+    quantity: "",
+    averagePrice: "",
+    purchaseDate: new Date().toISOString().split("T")[0],
     cdiPercentage: "100",
     fixedRate: "",
     maturityDate: "",
@@ -62,6 +98,8 @@ export default function Investments() {
   const investmentsQuery = trpc.investments.list.useQuery();
   const accountsQuery = trpc.accounts.list.useQuery();
   const createInvestmentMutation = trpc.investments.create.useMutation();
+  const updateInvestmentMutation = trpc.investments.update.useMutation();
+  const deleteInvestmentMutation = trpc.investments.delete.useMutation();
 
   const isCdiInvestment = formData.type === "cdb" || formData.type === "lci_lca";
 
@@ -115,6 +153,88 @@ export default function Investments() {
     }));
   };
 
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleEditSelectChange = (name: string, value: string) => {
+    setEditFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleEdit = (inv: Investment) => {
+    setSelectedInvestment(inv);
+    setEditFormData({
+      accountId: inv.accountId,
+      name: inv.name,
+      ticker: inv.ticker ?? "",
+      type: inv.type,
+      quantity: inv.quantity,
+      averagePrice: inv.averagePrice,
+      purchaseDate: new Date(inv.purchaseDate).toISOString().split("T")[0],
+      cdiPercentage: inv.cdiPercentage ?? "100",
+      fixedRate: inv.fixedRate ?? "",
+      maturityDate: inv.maturityDate ? new Date(inv.maturityDate).toISOString().split("T")[0] : "",
+      institution: inv.institution ?? "",
+    });
+    setEditOpen(true);
+  };
+
+  const isEditCdiInvestment = editFormData.type === "cdb" || editFormData.type === "lci_lca";
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInvestment) return;
+
+    try {
+      await updateInvestmentMutation.mutateAsync({
+        id: selectedInvestment.id,
+        name: editFormData.name,
+        type: editFormData.type,
+        quantity: editFormData.quantity,
+        averagePrice: editFormData.averagePrice,
+        ticker: editFormData.ticker || undefined,
+        cdiPercentage: isEditCdiInvestment ? editFormData.cdiPercentage : undefined,
+        fixedRate: editFormData.fixedRate || undefined,
+        maturityDate: editFormData.maturityDate ? new Date(editFormData.maturityDate).toISOString() : undefined,
+        institution: editFormData.institution || undefined,
+      });
+      toast.success("Investimento atualizado com sucesso!");
+      setEditOpen(false);
+      setSelectedInvestment(null);
+      investmentsQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao atualizar investimento");
+      console.error(error);
+    }
+  };
+
+  const handleDeleteClick = (inv: Investment) => {
+    setSelectedInvestment(inv);
+    setDeleteOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedInvestment) return;
+
+    try {
+      await deleteInvestmentMutation.mutateAsync({ id: selectedInvestment.id });
+      toast.success("Investimento excluído com sucesso!");
+      setDeleteOpen(false);
+      setSelectedInvestment(null);
+      investmentsQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao excluir investimento");
+      console.error(error);
+    }
+  };
+
   // Cálculos
   const investments = investmentsQuery.data || [];
   const totalInvested = investments.reduce(
@@ -162,7 +282,7 @@ export default function Investments() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={toggleFullscreen}
+            onClick={() => toggleFullscreen()}
             title="Tela cheia"
           >
             <Maximize2 className="h-4 w-4" />
@@ -543,6 +663,7 @@ export default function Investments() {
                 <table className="w-full text-sm">
                   <thead className="border-b">
                     <tr>
+                      <th className="text-left py-2 px-4">ID</th>
                       <th className="text-left py-2 px-4">Ativo</th>
                       <th className="text-left py-2 px-4">Tipo</th>
                       <th className="text-right py-2 px-4">Investido</th>
@@ -579,6 +700,9 @@ export default function Investments() {
                       return (
                         <tr key={inv.id} className="border-b hover:bg-muted/50">
                           <td className="py-3 px-4">
+                            <span className="text-xs text-muted-foreground font-mono">#{inv.id}</span>
+                          </td>
+                          <td className="py-3 px-4">
                             <div>
                               <p className="font-medium">{inv.name}</p>
                               {inv.institution && (
@@ -614,10 +738,10 @@ export default function Investments() {
                           </td>
                           <td className="py-3 px-4 text-center">
                             <div className="flex justify-center gap-2">
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(inv as Investment)}>
                                 <Edit2 className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="text-red-600">
+                              <Button variant="ghost" size="sm" className="text-red-600" onClick={() => handleDeleteClick(inv as Investment)}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -640,6 +764,211 @@ export default function Investments() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Investimento #{selectedInvestment?.id}</DialogTitle>
+            <DialogDescription>Atualize os dados do investimento</DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Nome do Ativo *</Label>
+              <Input
+                id="edit-name"
+                name="name"
+                value={editFormData.name}
+                onChange={handleEditInputChange}
+                placeholder="Ex: Petrobras"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-ticker">Ticker</Label>
+                <Input
+                  id="edit-ticker"
+                  name="ticker"
+                  value={editFormData.ticker}
+                  onChange={handleEditInputChange}
+                  placeholder="Ex: PETR4"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-type">Tipo *</Label>
+                <Select value={editFormData.type} onValueChange={(value) => handleEditSelectChange("type", value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stock">Ação</SelectItem>
+                    <SelectItem value="etf">ETF</SelectItem>
+                    <SelectItem value="fund">Fundo</SelectItem>
+                    <SelectItem value="fii">FII</SelectItem>
+                    <SelectItem value="bond">Título</SelectItem>
+                    <SelectItem value="cdb">CDB</SelectItem>
+                    <SelectItem value="lci_lca">LCI/LCA</SelectItem>
+                    <SelectItem value="crypto">Criptomoeda</SelectItem>
+                    <SelectItem value="real_estate">Imóvel</SelectItem>
+                    <SelectItem value="other">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Campos específicos para CDB/LCI/LCA */}
+            {isEditCdiInvestment && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-cdiPercentage">% do CDI *</Label>
+                    <div className="relative">
+                      <Input
+                        id="edit-cdiPercentage"
+                        name="cdiPercentage"
+                        type="number"
+                        step="0.01"
+                        value={editFormData.cdiPercentage}
+                        onChange={handleEditInputChange}
+                        placeholder="100"
+                        className="pr-8"
+                        required
+                      />
+                      <Percent className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-fixedRate">Taxa Prefixada (opcional)</Label>
+                    <Input
+                      id="edit-fixedRate"
+                      name="fixedRate"
+                      type="number"
+                      step="0.01"
+                      value={editFormData.fixedRate}
+                      onChange={handleEditInputChange}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-maturityDate">Data de Vencimento</Label>
+                    <Input
+                      id="edit-maturityDate"
+                      name="maturityDate"
+                      type="date"
+                      value={editFormData.maturityDate}
+                      onChange={handleEditInputChange}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-institution">Instituição</Label>
+                    <div className="relative">
+                      <Input
+                        id="edit-institution"
+                        name="institution"
+                        value={editFormData.institution}
+                        onChange={handleEditInputChange}
+                        placeholder="Ex: Nubank, Inter, C6"
+                        className="pr-8"
+                      />
+                      <Building2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Para CDI: apenas valor investido. Para outros: quantidade e preço médio */}
+            {isEditCdiInvestment ? (
+              <div>
+                <Label htmlFor="edit-averagePrice">Valor Investido (R$) *</Label>
+                <Input
+                  id="edit-averagePrice"
+                  name="averagePrice"
+                  type="number"
+                  step="0.01"
+                  value={editFormData.averagePrice}
+                  onChange={(e) => {
+                    handleEditInputChange(e);
+                    setEditFormData(prev => ({ ...prev, quantity: "1" }));
+                  }}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-quantity">Quantidade *</Label>
+                  <Input
+                    id="edit-quantity"
+                    name="quantity"
+                    type="number"
+                    step="0.01"
+                    value={editFormData.quantity}
+                    onChange={handleEditInputChange}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-averagePrice">Preço Médio *</Label>
+                  <Input
+                    id="edit-averagePrice"
+                    name="averagePrice"
+                    type="number"
+                    step="0.01"
+                    value={editFormData.averagePrice}
+                    onChange={handleEditInputChange}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateInvestmentMutation.isPending}>
+                {updateInvestmentMutation.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Investimento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o investimento "{selectedInvestment?.name}"?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteInvestmentMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

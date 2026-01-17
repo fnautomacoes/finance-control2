@@ -563,7 +563,7 @@ export default function CreditCards() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={toggleFullscreen}
+                onClick={() => toggleFullscreen()}
                 title="Tela cheia"
               >
                 <Maximize2 className="h-4 w-4" />

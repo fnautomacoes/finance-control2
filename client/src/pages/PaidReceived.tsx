@@ -222,7 +222,7 @@ export default function PaidReceived() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={toggleFullscreen}
+                  onClick={() => toggleFullscreen()}
                   title="Tela cheia"
                 >
                   <Maximize2 className="h-4 w-4" />
@@ -231,12 +231,17 @@ export default function PaidReceived() {
                   variant="ghost"
                   size="icon"
                   onClick={() => {
-                    const data = activeTab === "paid" ? paidItems : receivedItems;
-                    const exportData = data.map((item) => ({
-                      Descrição: item.description,
-                      Valor: formatCurrencyForExport(parseFloat(item.amount as string)),
-                      Data: formatDateForExport(activeTab === "paid" ? item.paidDate || "" : item.receivedDate || ""),
-                    }));
+                    const exportData = activeTab === "paid"
+                      ? paidItems.map((item) => ({
+                          Descrição: item.description,
+                          Valor: formatCurrencyForExport(parseFloat(item.amount as string)),
+                          Data: formatDateForExport(item.paidDate || ""),
+                        }))
+                      : receivedItems.map((item) => ({
+                          Descrição: item.description,
+                          Valor: formatCurrencyForExport(parseFloat(item.amount as string)),
+                          Data: formatDateForExport(item.receivedDate || ""),
+                        }));
                     exportToCSV(
                       exportData,
                       `contas-${activeTab === "paid" ? "pagas" : "recebidas"}-${formatDateForExport(new Date())}`
