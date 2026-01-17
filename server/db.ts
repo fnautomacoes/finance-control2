@@ -115,7 +115,28 @@ export async function getUserCategories(userId: number) {
 export async function createCategory(data: InsertCategory) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(categories).values(data);
+  const result = await db.insert(categories).values(data).returning();
+  return result[0];
+}
+
+export async function updateCategory(id: number, userId: number, data: Partial<InsertCategory>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(categories)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(categories.id, id), eq(categories.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteCategory(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(categories)
+    .where(and(eq(categories.id, id), eq(categories.userId, userId)));
+  return { success: true };
 }
 
 /**
@@ -130,7 +151,28 @@ export async function getUserAccounts(userId: number) {
 export async function createAccount(data: InsertAccount) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(accounts).values(data);
+  const result = await db.insert(accounts).values(data).returning();
+  return result[0];
+}
+
+export async function updateAccount(id: number, userId: number, data: Partial<InsertAccount>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(accounts)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(accounts.id, id), eq(accounts.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteAccount(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(accounts)
+    .where(and(eq(accounts.id, id), eq(accounts.userId, userId)));
+  return { success: true };
 }
 
 export async function getAccountById(accountId: number, userId: number) {
@@ -160,7 +202,28 @@ export async function getUserTransactions(userId: number, limit = 50) {
 export async function createTransaction(data: InsertTransaction) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(transactions).values(data);
+  const result = await db.insert(transactions).values(data).returning();
+  return result[0];
+}
+
+export async function updateTransaction(id: number, userId: number, data: Partial<InsertTransaction>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(transactions)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteTransaction(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(transactions)
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+  return { success: true };
 }
 
 export async function getTransactionsByAccount(accountId: number, userId: number) {
@@ -184,7 +247,28 @@ export async function getUserInvestments(userId: number) {
 export async function createInvestment(data: InsertInvestment) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(investments).values(data);
+  const result = await db.insert(investments).values(data).returning();
+  return result[0];
+}
+
+export async function updateInvestment(id: number, userId: number, data: Partial<InsertInvestment>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(investments)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(investments.id, id), eq(investments.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteInvestment(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(investments)
+    .where(and(eq(investments.id, id), eq(investments.userId, userId)));
+  return { success: true };
 }
 
 /**
