@@ -178,16 +178,17 @@ Todos os endpoints tRPC estão em `/api/trpc`:
 | Router | Endpoints |
 |--------|-----------|
 | `auth` | `me`, `logout` |
-| `accounts` | `list`, `create` |
-| `categories` | `list`, `create` |
-| `transactions` | `list`, `create` |
-| `investments` | `list`, `create` |
-| `goals` | `list`, `create` |
-| `contacts` | `list`, `create` |
-| `payables` | `list`, `create` |
-| `receivables` | `list`, `create` |
-| `assets` | `list`, `create` |
-| `liabilities` | `list`, `create` |
+| `accounts` | `list`, `create`, `update`, `delete` |
+| `categories` | `list`, `create`, `update`, `delete` |
+| `transactions` | `list`, `create`, `update`, `delete` |
+| `investments` | `list`, `create`, `update`, `delete` |
+| `goals` | `list`, `create`, `update`, `delete` |
+| `contacts` | `list`, `create`, `update`, `delete` |
+| `payables` | `list`, `create`, `update`, `delete` |
+| `receivables` | `list`, `create`, `update`, `delete` |
+| `assets` | `list`, `create`, `update`, `delete` |
+| `liabilities` | `list`, `create`, `update`, `delete` |
+| `dashboard` | `summary` |
 
 ## Banco de Dados
 

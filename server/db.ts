@@ -283,7 +283,28 @@ export async function getUserGoals(userId: number) {
 export async function createGoal(data: InsertGoal) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(goals).values(data);
+  const result = await db.insert(goals).values(data).returning();
+  return result[0];
+}
+
+export async function updateGoal(id: number, userId: number, data: Partial<InsertGoal>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(goals)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(goals.id, id), eq(goals.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteGoal(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(goals)
+    .where(and(eq(goals.id, id), eq(goals.userId, userId)));
+  return { success: true };
 }
 
 /**
@@ -298,7 +319,28 @@ export async function getUserContacts(userId: number) {
 export async function createContact(data: InsertContact) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(contacts).values(data);
+  const result = await db.insert(contacts).values(data).returning();
+  return result[0];
+}
+
+export async function updateContact(id: number, userId: number, data: Partial<InsertContact>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(contacts)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteContact(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(contacts)
+    .where(and(eq(contacts.id, id), eq(contacts.userId, userId)));
+  return { success: true };
 }
 
 /**
@@ -313,7 +355,28 @@ export async function getUserPayables(userId: number) {
 export async function createPayable(data: InsertPayable) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(payables).values(data);
+  const result = await db.insert(payables).values(data).returning();
+  return result[0];
+}
+
+export async function updatePayable(id: number, userId: number, data: Partial<InsertPayable>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(payables)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(payables.id, id), eq(payables.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deletePayable(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(payables)
+    .where(and(eq(payables.id, id), eq(payables.userId, userId)));
+  return { success: true };
 }
 
 /**
@@ -328,7 +391,28 @@ export async function getUserReceivables(userId: number) {
 export async function createReceivable(data: InsertReceivable) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(receivables).values(data);
+  const result = await db.insert(receivables).values(data).returning();
+  return result[0];
+}
+
+export async function updateReceivable(id: number, userId: number, data: Partial<InsertReceivable>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(receivables)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(receivables.id, id), eq(receivables.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteReceivable(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(receivables)
+    .where(and(eq(receivables.id, id), eq(receivables.userId, userId)));
+  return { success: true };
 }
 
 /**
@@ -343,7 +427,28 @@ export async function getUserAssets(userId: number) {
 export async function createAsset(data: InsertAsset) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(assets).values(data);
+  const result = await db.insert(assets).values(data).returning();
+  return result[0];
+}
+
+export async function updateAsset(id: number, userId: number, data: Partial<InsertAsset>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(assets)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteAsset(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(assets)
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)));
+  return { success: true };
 }
 
 /**
@@ -358,7 +463,28 @@ export async function getUserLiabilities(userId: number) {
 export async function createLiability(data: InsertLiability) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(liabilities).values(data);
+  const result = await db.insert(liabilities).values(data).returning();
+  return result[0];
+}
+
+export async function updateLiability(id: number, userId: number, data: Partial<InsertLiability>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(liabilities)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(liabilities.id, id), eq(liabilities.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteLiability(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(liabilities)
+    .where(and(eq(liabilities.id, id), eq(liabilities.userId, userId)));
+  return { success: true };
 }
 
 /**
@@ -368,6 +494,33 @@ export async function getUserCostCenters(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(costCenters).where(eq(costCenters.userId, userId));
+}
+
+export async function createCostCenter(data: { userId: number; name: string; description?: string; code?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(costCenters).values(data).returning();
+  return result[0];
+}
+
+export async function updateCostCenter(id: number, userId: number, data: Partial<{ name: string; description: string; code: string; isActive: boolean }>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(costCenters)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(costCenters.id, id), eq(costCenters.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+export async function deleteCostCenter(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(costCenters)
+    .where(and(eq(costCenters.id, id), eq(costCenters.userId, userId)));
+  return { success: true };
 }
 
 /**
