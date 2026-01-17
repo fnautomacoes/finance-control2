@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,8 +16,13 @@ import {
   Settings,
   AlertCircle,
   Plus,
+  TrendingUp,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
+
+// CDI rate (annual) - can be updated or fetched from API
+const CDI_ANNUAL_RATE = 0.1215; // 12.15% annual CDI rate
 
 const formatCurrency = (value: number) => {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -30,6 +36,7 @@ export default function Budget() {
   const [activeTab, setActiveTab] = useState("expenses");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [openDialog, setOpenDialog] = useState(false);
+  const [openInvestmentDialog, setOpenInvestmentDialog] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     type: "budget" as const,
@@ -38,9 +45,20 @@ export default function Budget() {
     startDate: new Date().toISOString().split("T")[0],
     endDate: "",
   });
+  const [investmentFormData, setInvestmentFormData] = useState({
+    name: "",
+    type: "cdb" as "cdb" | "lci_lca",
+    amount: "",
+    cdiPercentage: "100",
+    institution: "",
+    purchaseDate: new Date().toISOString().split("T")[0],
+    maturityDate: "",
+  });
 
   const goalsQuery = trpc.goals.list.useQuery();
   const categoriesQuery = trpc.categories.list.useQuery();
+  const accountsQuery = trpc.accounts.list.useQuery();
+  const investmentsQuery = trpc.investments.list.useQuery();
   const dashboardQuery = trpc.dashboard.summary.useQuery({
     startDate: new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
       .toISOString()
@@ -50,6 +68,7 @@ export default function Budget() {
       .split("T")[0],
   });
   const createGoalMutation = trpc.goals.create.useMutation();
+  const createInvestmentMutation = trpc.investments.create.useMutation();
 
   const navigateMonth = (direction: "prev" | "next") => {
     setCurrentMonth((prev) => {
@@ -81,6 +100,46 @@ export default function Budget() {
     if (!goalsQuery.data) return [];
     return goalsQuery.data.filter((g) => g.type === "investment");
   }, [goalsQuery.data]);
+
+  // Filter CDI investments (CDB, LCI/LCA)
+  const cdiInvestments = useMemo(() => {
+    if (!investmentsQuery.data) return [];
+    return investmentsQuery.data.filter((inv) =>
+      inv.type === "cdb" || inv.type === "lci_lca"
+    );
+  }, [investmentsQuery.data]);
+
+  // Calculate CDI yield for an investment
+  const calculateCdiYield = (investment: NonNullable<typeof investmentsQuery.data>[0]) => {
+    const purchaseDate = new Date(investment.purchaseDate);
+    const today = new Date();
+    const daysElapsed = Math.floor((today.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    const principal = parseFloat(investment.totalCost as string);
+    const cdiPercentage = investment.cdiPercentage ? parseFloat(investment.cdiPercentage as string) / 100 : 1;
+
+    // Daily CDI rate = (1 + annual_rate)^(1/252) - 1 (252 business days)
+    const dailyCdiRate = Math.pow(1 + CDI_ANNUAL_RATE, 1 / 252) - 1;
+
+    // Calculate compound yield
+    const yieldAmount = principal * (Math.pow(1 + dailyCdiRate * cdiPercentage, daysElapsed) - 1);
+    const currentValue = principal + yieldAmount;
+    const yieldPercentage = (yieldAmount / principal) * 100;
+
+    return {
+      principal,
+      currentValue,
+      yieldAmount,
+      yieldPercentage,
+      daysElapsed,
+    };
+  };
+
+  // Get investment account (first one found)
+  const investmentAccount = useMemo(() => {
+    if (!accountsQuery.data) return null;
+    return accountsQuery.data.find((a) => a.type === "investment");
+  }, [accountsQuery.data]);
 
   // Calculate spent amounts by category from dashboard data
   const spentByCategory = useMemo(() => {
@@ -144,6 +203,44 @@ export default function Budget() {
       ...prev,
       [name]: name === "categoryId" ? parseInt(value) : value,
     }));
+  };
+
+  const handleInvestmentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!investmentAccount) {
+      toast.error("Crie uma conta de investimentos primeiro em Cadastros > Contas");
+      return;
+    }
+
+    try {
+      await createInvestmentMutation.mutateAsync({
+        accountId: investmentAccount.id,
+        name: investmentFormData.name,
+        type: investmentFormData.type,
+        quantity: "1",
+        averagePrice: investmentFormData.amount,
+        purchaseDate: investmentFormData.purchaseDate,
+        maturityDate: investmentFormData.maturityDate || undefined,
+        cdiPercentage: investmentFormData.cdiPercentage,
+        institution: investmentFormData.institution || undefined,
+      });
+      toast.success("Investimento cadastrado com sucesso!");
+      setInvestmentFormData({
+        name: "",
+        type: "cdb",
+        amount: "",
+        cdiPercentage: "100",
+        institution: "",
+        purchaseDate: new Date().toISOString().split("T")[0],
+        maturityDate: "",
+      });
+      setOpenInvestmentDialog(false);
+      investmentsQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao cadastrar investimento");
+      console.error(error);
+    }
   };
 
   if (goalsQuery.isLoading || categoriesQuery.isLoading || dashboardQuery.isLoading) {
@@ -272,13 +369,138 @@ export default function Budget() {
             </TabsContent>
 
             <TabsContent value="investments" className="m-0 space-y-4">
-              {investmentGoals.length > 0 ? (
-                investmentGoals.map((goal) => {
-                  const current = parseFloat(goal.currentAmount as string || "0");
-                  return renderGoalCard(goal, current);
-                })
-              ) : (
-                renderEmptyState("investimento")
+              {/* CDI Investments Summary */}
+              {cdiInvestments.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-green-500" />
+                      Investimentos em Renda Fixa
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {cdiInvestments.map((investment) => {
+                      const yieldData = calculateCdiYield(investment);
+                      const cdiPercent = investment.cdiPercentage
+                        ? parseFloat(investment.cdiPercentage as string)
+                        : 100;
+
+                      return (
+                        <div key={investment.id} className="border rounded-lg p-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{investment.name}</span>
+                                <Badge variant="secondary">
+                                  {investment.type === "cdb" ? "CDB" : "LCI/LCA"}
+                                </Badge>
+                                <Badge variant="outline" className="text-green-600">
+                                  {cdiPercent}% CDI
+                                </Badge>
+                              </div>
+                              {investment.institution && (
+                                <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                                  <Building2 className="h-3 w-3" />
+                                  {investment.institution}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <div className="text-lg font-semibold text-green-600">
+                                {formatCurrency(yieldData.currentValue)}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                Aplicado: {formatCurrency(yieldData.principal)}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-muted-foreground">
+                              {yieldData.daysElapsed} dias investido
+                            </span>
+                            <span className="text-green-600 font-medium">
+                              +{formatCurrency(yieldData.yieldAmount)} ({yieldData.yieldPercentage.toFixed(2)}%)
+                            </span>
+                          </div>
+                          {investment.maturityDate && (
+                            <div className="text-xs text-muted-foreground">
+                              Vencimento: {new Date(investment.maturityDate).toLocaleDateString("pt-BR")}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <div className="border-t pt-4 mt-4">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">Total Investido</span>
+                        <span className="text-lg font-semibold">
+                          {formatCurrency(
+                            cdiInvestments.reduce(
+                              (sum, inv) => sum + parseFloat(inv.totalCost as string),
+                              0
+                            )
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-green-600">
+                        <span className="font-medium">Total com Rendimento</span>
+                        <span className="text-lg font-semibold">
+                          {formatCurrency(
+                            cdiInvestments.reduce(
+                              (sum, inv) => sum + calculateCdiYield(inv).currentValue,
+                              0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Investment Goals */}
+              {investmentGoals.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Metas de Investimento</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {investmentGoals.map((goal) => {
+                      const current = parseFloat(goal.currentAmount as string || "0");
+                      return renderGoalCard(goal, current);
+                    })}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Empty state */}
+              {cdiInvestments.length === 0 && investmentGoals.length === 0 && (
+                <Card>
+                  <CardContent className="py-16 text-center">
+                    <AlertCircle className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground mb-2">
+                      Nenhum investimento cadastrado.
+                    </p>
+                    <p className="text-muted-foreground text-sm mb-4">
+                      Cadastre seus investimentos em CDB, LCI/LCA para acompanhar o rendimento.
+                    </p>
+                    <Button onClick={() => setOpenInvestmentDialog(true)} className="bg-teal-500 hover:bg-teal-600">
+                      Cadastrar Investimento
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Add Investment Button */}
+              {(cdiInvestments.length > 0 || investmentGoals.length > 0) && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setOpenInvestmentDialog(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Investimento CDI
+                </Button>
               )}
             </TabsContent>
 
@@ -417,6 +639,133 @@ export default function Budget() {
 
             <Button type="submit" className="w-full" disabled={createGoalMutation.isPending}>
               {createGoalMutation.isPending ? "Criando..." : "Criar Meta"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Investment Dialog */}
+      <Dialog open={openInvestmentDialog} onOpenChange={setOpenInvestmentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo Investimento CDI</DialogTitle>
+            <DialogDescription>
+              Cadastre um investimento em CDB, LCI ou LCA com rendimento atrelado ao CDI
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleInvestmentSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="investName">Nome do Investimento *</Label>
+              <Input
+                id="investName"
+                value={investmentFormData.name}
+                onChange={(e) =>
+                  setInvestmentFormData({ ...investmentFormData, name: e.target.value })
+                }
+                placeholder="Ex: CDB Nubank 120% CDI"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="investType">Tipo *</Label>
+                <Select
+                  value={investmentFormData.type}
+                  onValueChange={(v: "cdb" | "lci_lca") =>
+                    setInvestmentFormData({ ...investmentFormData, type: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cdb">CDB</SelectItem>
+                    <SelectItem value="lci_lca">LCI/LCA</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="cdiPercentage">% do CDI *</Label>
+                <Input
+                  id="cdiPercentage"
+                  type="number"
+                  step="0.01"
+                  value={investmentFormData.cdiPercentage}
+                  onChange={(e) =>
+                    setInvestmentFormData({ ...investmentFormData, cdiPercentage: e.target.value })
+                  }
+                  placeholder="100"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="investAmount">Valor Aplicado *</Label>
+              <Input
+                id="investAmount"
+                type="number"
+                step="0.01"
+                value={investmentFormData.amount}
+                onChange={(e) =>
+                  setInvestmentFormData({ ...investmentFormData, amount: e.target.value })
+                }
+                placeholder="0,00"
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="institution">Instituição</Label>
+              <Input
+                id="institution"
+                value={investmentFormData.institution}
+                onChange={(e) =>
+                  setInvestmentFormData({ ...investmentFormData, institution: e.target.value })
+                }
+                placeholder="Ex: Nubank, Inter, C6..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="investPurchaseDate">Data da Aplicação *</Label>
+                <Input
+                  id="investPurchaseDate"
+                  type="date"
+                  value={investmentFormData.purchaseDate}
+                  onChange={(e) =>
+                    setInvestmentFormData({ ...investmentFormData, purchaseDate: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="investMaturityDate">Data de Vencimento</Label>
+                <Input
+                  id="investMaturityDate"
+                  type="date"
+                  value={investmentFormData.maturityDate}
+                  onChange={(e) =>
+                    setInvestmentFormData({ ...investmentFormData, maturityDate: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="bg-muted p-3 rounded-md text-sm">
+              <p className="text-muted-foreground">
+                <strong>CDI atual:</strong> {(CDI_ANNUAL_RATE * 100).toFixed(2)}% a.a.
+              </p>
+              <p className="text-muted-foreground">
+                <strong>Seu rendimento:</strong> {(CDI_ANNUAL_RATE * parseFloat(investmentFormData.cdiPercentage || "100") / 100 * 100).toFixed(2)}% a.a.
+              </p>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={createInvestmentMutation.isPending}>
+              {createInvestmentMutation.isPending ? "Cadastrando..." : "Cadastrar Investimento"}
             </Button>
           </form>
         </DialogContent>

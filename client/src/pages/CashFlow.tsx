@@ -3,6 +3,10 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, Calendar, Settings, Maximize2, Printer, Plus } from "lucide-react";
 import {
   LineChart,
@@ -16,6 +20,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { toast } from "sonner";
 
 const formatCurrency = (value: number) => {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -39,8 +44,19 @@ export default function CashFlow() {
   const [includePending, setIncludePending] = useState(false);
   const [excludeInternalTransfers, setExcludeInternalTransfers] = useState(false);
   const [checkedAccounts, setCheckedAccounts] = useState<number[]>([]);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [formData, setFormData] = useState({
+    accountId: 0,
+    description: "",
+    amount: "",
+    type: "expense" as "income" | "expense",
+    date: new Date().toISOString().split("T")[0],
+    categoryId: undefined as number | undefined,
+  });
 
   const accountsQuery = trpc.accounts.list.useQuery();
+  const categoriesQuery = trpc.categories.list.useQuery();
+  const createTransactionMutation = trpc.transactions.create.useMutation();
   const dashboardQuery = trpc.dashboard.summary.useQuery({
     startDate: startDate.toISOString().split("T")[0],
     endDate: endDate.toISOString().split("T")[0],
@@ -71,6 +87,37 @@ export default function CashFlow() {
       newDate.setDate(newDate.getDate() + days);
       return newDate;
     });
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.accountId || !formData.description || !formData.amount) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    try {
+      await createTransactionMutation.mutateAsync({
+        accountId: formData.accountId,
+        description: formData.description,
+        amount: formData.amount,
+        type: formData.type,
+        date: formData.date,
+        categoryId: formData.categoryId,
+      });
+      toast.success("Transação criada com sucesso!");
+      setOpenDialog(false);
+      setFormData({
+        accountId: 0,
+        description: "",
+        amount: "",
+        type: "expense",
+        date: new Date().toISOString().split("T")[0],
+        categoryId: undefined,
+      });
+      dashboardQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao criar transação");
+    }
   };
 
   // Calculate totals from checked accounts
@@ -364,9 +411,127 @@ export default function CashFlow() {
       <Button
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
         size="icon"
+        onClick={() => setOpenDialog(true)}
       >
         <Plus className="h-6 w-6" />
       </Button>
+
+      {/* Transaction Dialog */}
+      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Transação</DialogTitle>
+            <DialogDescription>
+              Adicione uma nova transação ao fluxo de caixa
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="type">Tipo</Label>
+              <Select
+                value={formData.type}
+                onValueChange={(value: "income" | "expense") =>
+                  setFormData({ ...formData, type: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="income">Receita</SelectItem>
+                  <SelectItem value="expense">Despesa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="account">Conta *</Label>
+              <Select
+                value={formData.accountId?.toString() || ""}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, accountId: parseInt(value) })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accountsQuery.data?.map((account) => (
+                    <SelectItem key={account.id} value={account.id.toString()}>
+                      {account.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrição *</Label>
+              <Input
+                id="description"
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                placeholder="Ex: Salário, Aluguel..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="amount">Valor *</Label>
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                value={formData.amount}
+                onChange={(e) =>
+                  setFormData({ ...formData, amount: e.target.value })
+                }
+                placeholder="0,00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date">Data</Label>
+              <Input
+                id="date"
+                type="date"
+                value={formData.date}
+                onChange={(e) =>
+                  setFormData({ ...formData, date: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category">Categoria</Label>
+              <Select
+                value={formData.categoryId?.toString() || ""}
+                onValueChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    categoryId: value ? parseInt(value) : undefined,
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoriesQuery.data?.map((category) => (
+                    <SelectItem key={category.id} value={category.id.toString()}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpenDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSubmit} disabled={createTransactionMutation.isPending}>
+              {createTransactionMutation.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

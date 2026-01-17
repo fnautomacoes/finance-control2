@@ -26,6 +26,8 @@ export const investmentTypeEnum = pgEnum("investment_type", [
   "fund",
   "fii",
   "bond",
+  "cdb",
+  "lci_lca",
   "crypto",
   "real_estate",
   "other",
@@ -97,6 +99,7 @@ export const accounts = pgTable("accounts", {
   currency: currencyEnum("currency").default("BRL").notNull(),
   balance: decimal("balance", { precision: 15, scale: 2 }).default("0"),
   initialBalance: decimal("initialBalance", { precision: 15, scale: 2 }).default("0"),
+  creditLimit: decimal("creditLimit", { precision: 15, scale: 2 }),
   isActive: boolean("isActive").default(true),
   bankName: varchar("bankName", { length: 100 }),
   accountNumber: varchar("accountNumber", { length: 50 }),
@@ -132,7 +135,7 @@ export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = typeof transactions.$inferInsert;
 
 /**
- * Investimentos (ações, fundos, criptomoedas, etc)
+ * Investimentos (ações, fundos, criptomoedas, CDBs, etc)
  */
 export const investments = pgTable("investments", {
   id: serial("id").primaryKey(),
@@ -148,6 +151,10 @@ export const investments = pgTable("investments", {
   currentValue: decimal("currentValue", { precision: 15, scale: 2 }),
   currency: currencyEnum("currency").default("BRL").notNull(),
   purchaseDate: date("purchaseDate").notNull(),
+  maturityDate: date("maturityDate"),
+  cdiPercentage: decimal("cdiPercentage", { precision: 5, scale: 2 }),
+  fixedRate: decimal("fixedRate", { precision: 5, scale: 2 }),
+  institution: varchar("institution", { length: 100 }),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
