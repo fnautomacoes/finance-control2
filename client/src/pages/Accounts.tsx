@@ -22,6 +22,7 @@ interface AccountFormData {
   type: "checking" | "savings" | "investment" | "credit_card" | "other";
   currency: "BRL" | "USD" | "EUR";
   initialBalance: string;
+  balance: string;
   bankName: string;
   creditLimit?: string;
 }
@@ -36,6 +37,7 @@ export default function Accounts() {
     type: "checking",
     currency: "BRL",
     initialBalance: "0",
+    balance: "0",
     bankName: "",
     creditLimit: "",
   });
@@ -51,7 +53,12 @@ export default function Accounts() {
 
     try {
       await createAccountMutation.mutateAsync({
-        ...formData,
+        name: formData.name,
+        type: formData.type,
+        currency: formData.currency,
+        initialBalance: formData.initialBalance,
+        balance: formData.initialBalance, // Set balance equal to initialBalance on creation
+        bankName: formData.bankName || undefined,
         creditLimit: formData.type === "credit_card" ? formData.creditLimit : undefined,
       });
       toast.success("Conta criada com sucesso!");
@@ -60,6 +67,7 @@ export default function Accounts() {
         type: "checking",
         currency: "BRL",
         initialBalance: "0",
+        balance: "0",
         bankName: "",
         creditLimit: "",
       });
@@ -80,7 +88,8 @@ export default function Accounts() {
         id: selectedAccount.id,
         name: formData.name,
         type: formData.type,
-        bankName: formData.bankName,
+        balance: formData.balance,
+        bankName: formData.bankName || undefined,
         creditLimit: formData.type === "credit_card" ? formData.creditLimit : undefined,
       });
       toast.success("Conta atualizada com sucesso!");
@@ -114,9 +123,10 @@ export default function Accounts() {
       name: account.name,
       type: account.type,
       currency: account.currency,
-      initialBalance: account.initialBalance || "0",
+      initialBalance: account.initialBalance?.toString() || "0",
+      balance: account.balance?.toString() || "0",
       bankName: account.bankName || "",
-      creditLimit: account.creditLimit || "",
+      creditLimit: account.creditLimit?.toString() || "",
     });
     setEditOpen(true);
   };
@@ -460,6 +470,19 @@ export default function Accounts() {
                   <SelectItem value="other">Outro</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="edit-balance">Saldo Atual</Label>
+              <Input
+                id="edit-balance"
+                name="balance"
+                type="number"
+                step="0.01"
+                value={formData.balance}
+                onChange={handleInputChange}
+                placeholder="0.00"
+              />
             </div>
 
             {formData.type === "credit_card" && (
