@@ -8,6 +8,8 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { getDb } from "../db";
+import restApiRouter from "../api/rest";
+import { authService } from "./sdk";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -53,6 +55,7 @@ async function startServer() {
 
   // Auth routes (login, register)
   registerAuthRoutes(app);
+
   // tRPC API
   app.use(
     "/api/trpc",
@@ -61,6 +64,19 @@ async function startServer() {
       createContext,
     })
   );
+
+  // REST API v1 - com middleware para passar sessão do usuário (para criação de tokens)
+  app.use("/api/v1", async (req, res, next) => {
+    try {
+      const user = await authService.authenticateRequest(req);
+      (req as any).sessionUser = user;
+    } catch {
+      // Sessão não obrigatória - Bearer token será verificado pela API
+      (req as any).sessionUser = null;
+    }
+    next();
+  }, restApiRouter);
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
