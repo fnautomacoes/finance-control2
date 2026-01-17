@@ -22,16 +22,28 @@ import {
   deleteInvestment,
   getUserGoals,
   createGoal,
+  updateGoal,
+  deleteGoal,
   getUserContacts,
   createContact,
+  updateContact,
+  deleteContact,
   getUserPayables,
   createPayable,
+  updatePayable,
+  deletePayable,
   getUserReceivables,
   createReceivable,
+  updateReceivable,
+  deleteReceivable,
   getUserAssets,
   createAsset,
+  updateAsset,
+  deleteAsset,
   getUserLiabilities,
   createLiability,
+  updateLiability,
+  deleteLiability,
   getDashboardSummary,
 } from "./db";
 
@@ -324,6 +336,37 @@ export const appRouter = router({
           categoryId: input.categoryId,
         })
       ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).optional(),
+          type: z.enum(["budget", "savings", "investment"]).optional(),
+          targetAmount: z.string().optional(),
+          currentAmount: z.string().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          categoryId: z.number().optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateGoal(input.id, ctx.user.id, {
+          name: input.name,
+          type: input.type,
+          targetAmount: input.targetAmount,
+          currentAmount: input.currentAmount,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          categoryId: input.categoryId,
+          isActive: input.isActive,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteGoal(input.id, ctx.user.id)
+      ),
   }),
 
   // Contatos
@@ -348,6 +391,35 @@ export const appRouter = router({
           email: input.email,
           phone: input.phone,
         })
+      ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).optional(),
+          type: z.enum(["person", "company"]).optional(),
+          email: z.string().email().optional(),
+          phone: z.string().optional(),
+          category: z.string().optional(),
+          notes: z.string().optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateContact(input.id, ctx.user.id, {
+          name: input.name,
+          type: input.type,
+          email: input.email,
+          phone: input.phone,
+          category: input.category,
+          notes: input.notes,
+          isActive: input.isActive,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteContact(input.id, ctx.user.id)
       ),
   }),
 
@@ -380,6 +452,37 @@ export const appRouter = router({
           paidDate: input.paidDate,
         })
       ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          description: z.string().min(1).optional(),
+          amount: z.string().optional(),
+          dueDate: z.string().optional(),
+          contactId: z.number().optional(),
+          categoryId: z.number().optional(),
+          status: z.enum(["pending", "paid", "overdue", "cancelled"]).optional(),
+          paidDate: z.string().optional(),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updatePayable(input.id, ctx.user.id, {
+          description: input.description,
+          amount: input.amount,
+          dueDate: input.dueDate,
+          contactId: input.contactId,
+          categoryId: input.categoryId,
+          status: input.status,
+          paidDate: input.paidDate,
+          notes: input.notes,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deletePayable(input.id, ctx.user.id)
+      ),
   }),
 
   // Contas a Receber
@@ -411,6 +514,37 @@ export const appRouter = router({
           receivedDate: input.receivedDate,
         })
       ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          description: z.string().min(1).optional(),
+          amount: z.string().optional(),
+          dueDate: z.string().optional(),
+          contactId: z.number().optional(),
+          categoryId: z.number().optional(),
+          status: z.enum(["pending", "received", "overdue", "cancelled"]).optional(),
+          receivedDate: z.string().optional(),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateReceivable(input.id, ctx.user.id, {
+          description: input.description,
+          amount: input.amount,
+          dueDate: input.dueDate,
+          contactId: input.contactId,
+          categoryId: input.categoryId,
+          status: input.status,
+          receivedDate: input.receivedDate,
+          notes: input.notes,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteReceivable(input.id, ctx.user.id)
+      ),
   }),
 
   // Ativos
@@ -435,6 +569,35 @@ export const appRouter = router({
           purchasePrice: input.purchasePrice,
           purchaseDate: input.purchaseDate,
         })
+      ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).optional(),
+          type: z.enum(["real_estate", "vehicle", "jewelry", "art", "other"]).optional(),
+          description: z.string().optional(),
+          purchasePrice: z.string().optional(),
+          currentValue: z.string().optional(),
+          purchaseDate: z.string().optional(),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateAsset(input.id, ctx.user.id, {
+          name: input.name,
+          type: input.type,
+          description: input.description,
+          purchasePrice: input.purchasePrice,
+          currentValue: input.currentValue,
+          purchaseDate: input.purchaseDate,
+          notes: input.notes,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteAsset(input.id, ctx.user.id)
       ),
   }),
 
@@ -466,6 +629,39 @@ export const appRouter = router({
           startDate: input.startDate,
           endDate: input.endDate,
         })
+      ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).optional(),
+          type: z.enum(["loan", "mortgage", "credit_card", "other"]).optional(),
+          description: z.string().optional(),
+          originalAmount: z.string().optional(),
+          currentAmount: z.string().optional(),
+          interestRate: z.string().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateLiability(input.id, ctx.user.id, {
+          name: input.name,
+          type: input.type,
+          description: input.description,
+          originalAmount: input.originalAmount,
+          currentAmount: input.currentAmount,
+          interestRate: input.interestRate,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          notes: input.notes,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteLiability(input.id, ctx.user.id)
       ),
   }),
 });
