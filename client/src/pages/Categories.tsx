@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Plus, Trash2, Edit2, Tag } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,19 +19,31 @@ const COLORS = [
   { name: "Ciano", value: "#06b6d4" },
 ];
 
+interface CategoryFormData {
+  name: string;
+  description: string;
+  color: string;
+  type: "income" | "expense";
+}
+
 export default function Categories() {
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<any>(null);
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<CategoryFormData>({
     name: "",
     description: "",
     color: COLORS[0].value,
-    type: "expense" as const,
+    type: "expense",
   });
 
   // Queries
   const categoriesQuery = trpc.categories.list.useQuery();
   const createCategoryMutation = trpc.categories.create.useMutation();
+  const updateCategoryMutation = trpc.categories.update.useMutation();
+  const deleteCategoryMutation = trpc.categories.delete.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +64,60 @@ export default function Categories() {
       toast.error("Erro ao criar categoria");
       console.error(error);
     }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCategory) return;
+
+    try {
+      await updateCategoryMutation.mutateAsync({
+        id: selectedCategory.id,
+        name: formData.name,
+        description: formData.description,
+        color: formData.color,
+        type: formData.type,
+      });
+      toast.success("Categoria atualizada com sucesso!");
+      setEditOpen(false);
+      setSelectedCategory(null);
+      categoriesQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao atualizar categoria");
+      console.error(error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedCategory) return;
+
+    try {
+      await deleteCategoryMutation.mutateAsync({ id: selectedCategory.id });
+      toast.success("Categoria excluída com sucesso!");
+      setDeleteOpen(false);
+      setSelectedCategory(null);
+      categoriesQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao excluir categoria");
+      console.error(error);
+    }
+  };
+
+  const openEditDialog = (category: any) => {
+    setSelectedCategory(category);
+    setFormData({
+      name: category.name,
+      description: category.description || "",
+      color: category.color || COLORS[0].value,
+      type: category.type,
+    });
+    setSelectedColor(category.color || COLORS[0].value);
+    setEditOpen(true);
+  };
+
+  const openDeleteDialog = (category: any) => {
+    setSelectedCategory(category);
+    setDeleteOpen(true);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -110,6 +176,28 @@ export default function Categories() {
               </div>
 
               <div>
+                <Label>Tipo *</Label>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    type="button"
+                    variant={formData.type === "expense" ? "default" : "outline"}
+                    onClick={() => setFormData((prev) => ({ ...prev, type: "expense" }))}
+                    className="flex-1"
+                  >
+                    Despesa
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={formData.type === "income" ? "default" : "outline"}
+                    onClick={() => setFormData((prev) => ({ ...prev, type: "income" }))}
+                    className="flex-1"
+                  >
+                    Receita
+                  </Button>
+                </div>
+              </div>
+
+              <div>
                 <Label>Cor *</Label>
                 <div className="grid grid-cols-4 gap-2 mt-2">
                   {COLORS.map((color) => (
@@ -159,23 +247,19 @@ export default function Categories() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Categorias Ativas</CardTitle>
+            <CardTitle className="text-sm font-medium">Categorias de Despesa</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{categories.filter((c) => c.isActive !== false).length}</p>
+            <p className="text-2xl font-bold">{categories.filter((c) => c.type === "expense").length}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Última Criada</CardTitle>
+            <CardTitle className="text-sm font-medium">Categorias de Receita</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm font-medium">
-              {categories.length > 0
-                ? new Date(categories[0].createdAt).toLocaleDateString("pt-BR")
-                : "Nenhuma"}
-            </p>
+            <p className="text-2xl font-bold">{categories.filter((c) => c.type === "income").length}</p>
           </CardContent>
         </Card>
       </div>
@@ -204,15 +288,39 @@ export default function Categories() {
                         )}
                       </div>
                     </div>
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                      ID: {category.id}
+                    </span>
                   </div>
                 </CardHeader>
                 <CardContent className="pb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      category.type === "income"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}>
+                      {category.type === "income" ? "Receita" : "Despesa"}
+                    </span>
+                  </div>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" className="flex-1">
-                      <Edit2 className="h-4 w-4" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => openEditDialog(category)}
+                    >
+                      <Edit2 className="h-4 w-4 mr-1" />
+                      Editar
                     </Button>
-                    <Button variant="ghost" size="sm" className="flex-1 text-red-600">
-                      <Trash2 className="h-4 w-4" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => openDeleteDialog(category)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Excluir
                     </Button>
                   </div>
                 </CardContent>
@@ -238,15 +346,17 @@ export default function Categories() {
         <Card className="hidden lg:block">
           <CardHeader>
             <CardTitle>Visão em Tabela</CardTitle>
-            <CardDescription>Todas as categorias</CardDescription>
+            <CardDescription>Todas as categorias com IDs para uso na API</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b">
                   <tr>
+                    <th className="text-left py-2 px-4">ID</th>
                     <th className="text-left py-2 px-4">Cor</th>
                     <th className="text-left py-2 px-4">Nome</th>
+                    <th className="text-left py-2 px-4">Tipo</th>
                     <th className="text-left py-2 px-4">Descrição</th>
                     <th className="text-left py-2 px-4">Criada em</th>
                     <th className="text-center py-2 px-4">Ações</th>
@@ -255,6 +365,7 @@ export default function Categories() {
                 <tbody>
                   {categories.map((category) => (
                     <tr key={category.id} className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-4 font-mono text-xs bg-muted/30">{category.id}</td>
                       <td className="py-3 px-4">
                         <div
                           className="w-6 h-6 rounded"
@@ -262,6 +373,15 @@ export default function Categories() {
                         />
                       </td>
                       <td className="py-3 px-4 font-medium">{category.name}</td>
+                      <td className="py-3 px-4">
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          category.type === "income"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}>
+                          {category.type === "income" ? "Receita" : "Despesa"}
+                        </span>
+                      </td>
                       <td className="py-3 px-4 text-muted-foreground">
                         {category.description || "-"}
                       </td>
@@ -270,10 +390,19 @@ export default function Categories() {
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex justify-center gap-2">
-                          <Button variant="ghost" size="sm">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(category)}
+                          >
                             <Edit2 className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="text-red-600">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => openDeleteDialog(category)}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -286,6 +415,122 @@ export default function Categories() {
           </CardContent>
         </Card>
       )}
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Categoria</DialogTitle>
+            <DialogDescription>Atualize os dados da categoria</DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdate} className="space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Nome da Categoria *</Label>
+              <Input
+                id="edit-name"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder="Ex: Alimentação"
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit-description">Descrição</Label>
+              <Input
+                id="edit-description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Descrição opcional"
+              />
+            </div>
+
+            <div>
+              <Label>Tipo *</Label>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  type="button"
+                  variant={formData.type === "expense" ? "default" : "outline"}
+                  onClick={() => setFormData((prev) => ({ ...prev, type: "expense" }))}
+                  className="flex-1"
+                >
+                  Despesa
+                </Button>
+                <Button
+                  type="button"
+                  variant={formData.type === "income" ? "default" : "outline"}
+                  onClick={() => setFormData((prev) => ({ ...prev, type: "income" }))}
+                  className="flex-1"
+                >
+                  Receita
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label>Cor *</Label>
+              <div className="grid grid-cols-4 gap-2 mt-2">
+                {COLORS.map((color) => (
+                  <button
+                    key={color.value}
+                    type="button"
+                    onClick={() => {
+                      setSelectedColor(color.value);
+                      setFormData((prev) => ({
+                        ...prev,
+                        color: color.value,
+                      }));
+                    }}
+                    className={`w-full h-10 rounded-lg border-2 transition-all ${
+                      selectedColor === color.value
+                        ? "border-gray-800 scale-105"
+                        : "border-gray-200 hover:border-gray-400"
+                    }`}
+                    style={{ backgroundColor: color.value }}
+                    title={color.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateCategoryMutation.isPending}>
+                {updateCategoryMutation.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Categoria</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir a categoria "{selectedCategory?.name}"? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteCategoryMutation.isPending}
+            >
+              {deleteCategoryMutation.isPending ? "Excluindo..." : "Excluir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
