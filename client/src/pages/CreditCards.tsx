@@ -46,9 +46,26 @@ export default function CreditCards() {
   const [showUnreconciled, setShowUnreconciled] = useState(true);
   const [showReconciled, setShowReconciled] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [openCardDialog, setOpenCardDialog] = useState(false);
+  const [openTransactionDialog, setOpenTransactionDialog] = useState(false);
+  const [cardFormData, setCardFormData] = useState({
+    name: "",
+    creditLimit: "",
+    closingDay: "1",
+    dueDay: "10",
+  });
+  const [transactionFormData, setTransactionFormData] = useState({
+    description: "",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    categoryId: undefined as number | undefined,
+  });
 
   const accountsQuery = trpc.accounts.list.useQuery();
   const transactionsQuery = trpc.transactions.list.useQuery();
+  const categoriesQuery = trpc.categories.list.useQuery();
+  const createAccountMutation = trpc.accounts.create.useMutation();
+  const createTransactionMutation = trpc.transactions.create.useMutation();
 
   // Filter only credit card accounts
   const creditCards = useMemo(() => {
@@ -99,14 +116,14 @@ export default function CreditCards() {
 
   // Calculate credit limit info
   const limitInfo = useMemo(() => {
-    const limit = 3200; // Would come from account settings
+    const limit = selectedCard?.creditLimit ? parseFloat(selectedCard.creditLimit as string) : 0;
     const used = invoiceTotals.expenses;
     return {
       total: limit,
       used,
       available: limit - used,
     };
-  }, [invoiceTotals.expenses]);
+  }, [invoiceTotals.expenses, selectedCard]);
 
   const navigateMonth = (direction: "prev" | "next") => {
     setCurrentMonth((prev) => {
@@ -131,6 +148,62 @@ export default function CreditCards() {
     return date;
   }, [currentMonth]);
 
+  const handleCreateCard = async () => {
+    if (!cardFormData.name || !cardFormData.creditLimit) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    try {
+      await createAccountMutation.mutateAsync({
+        name: cardFormData.name,
+        type: "credit_card",
+        balance: "0",
+        creditLimit: cardFormData.creditLimit,
+      });
+      toast.success("Cartão de crédito criado com sucesso!");
+      setOpenCardDialog(false);
+      setCardFormData({
+        name: "",
+        creditLimit: "",
+        closingDay: "1",
+        dueDay: "10",
+      });
+      accountsQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao criar cartão de crédito");
+    }
+  };
+
+  const handleCreateTransaction = async () => {
+    if (!selectedCardId || !transactionFormData.description || !transactionFormData.amount) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    try {
+      await createTransactionMutation.mutateAsync({
+        accountId: selectedCardId,
+        description: transactionFormData.description,
+        amount: transactionFormData.amount,
+        type: "expense",
+        date: transactionFormData.date,
+        categoryId: transactionFormData.categoryId,
+      });
+      toast.success("Transação criada com sucesso!");
+      setOpenTransactionDialog(false);
+      setTransactionFormData({
+        description: "",
+        amount: "",
+        date: new Date().toISOString().split("T")[0],
+        categoryId: undefined,
+      });
+      transactionsQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao criar transação");
+    }
+  };
+
   if (accountsQuery.isLoading || transactionsQuery.isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -138,6 +211,162 @@ export default function CreditCards() {
       </div>
     );
   }
+
+  const renderCardDialog = () => (
+    <Dialog open={openCardDialog} onOpenChange={setOpenCardDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Novo Cartão de Crédito</DialogTitle>
+          <DialogDescription>
+            Cadastre um novo cartão de crédito
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="cardName">Nome do Cartão *</Label>
+            <Input
+              id="cardName"
+              value={cardFormData.name}
+              onChange={(e) =>
+                setCardFormData({ ...cardFormData, name: e.target.value })
+              }
+              placeholder="Ex: Nubank, Inter, C6..."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="creditLimit">Limite de Crédito *</Label>
+            <Input
+              id="creditLimit"
+              type="number"
+              step="0.01"
+              value={cardFormData.creditLimit}
+              onChange={(e) =>
+                setCardFormData({ ...cardFormData, creditLimit: e.target.value })
+              }
+              placeholder="0,00"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="closingDay">Dia de Fechamento</Label>
+              <Input
+                id="closingDay"
+                type="number"
+                min="1"
+                max="31"
+                value={cardFormData.closingDay}
+                onChange={(e) =>
+                  setCardFormData({ ...cardFormData, closingDay: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dueDay">Dia de Vencimento</Label>
+              <Input
+                id="dueDay"
+                type="number"
+                min="1"
+                max="31"
+                value={cardFormData.dueDay}
+                onChange={(e) =>
+                  setCardFormData({ ...cardFormData, dueDay: e.target.value })
+                }
+              />
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setOpenCardDialog(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleCreateCard} disabled={createAccountMutation.isPending}>
+            {createAccountMutation.isPending ? "Salvando..." : "Salvar"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
+  const renderTransactionDialog = () => (
+    <Dialog open={openTransactionDialog} onOpenChange={setOpenTransactionDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nova Transação</DialogTitle>
+          <DialogDescription>
+            Adicione uma nova transação ao cartão {selectedCard?.name}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="description">Descrição *</Label>
+            <Input
+              id="description"
+              value={transactionFormData.description}
+              onChange={(e) =>
+                setTransactionFormData({ ...transactionFormData, description: e.target.value })
+              }
+              placeholder="Ex: Compra no mercado..."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="amount">Valor *</Label>
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              value={transactionFormData.amount}
+              onChange={(e) =>
+                setTransactionFormData({ ...transactionFormData, amount: e.target.value })
+              }
+              placeholder="0,00"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="date">Data</Label>
+            <Input
+              id="date"
+              type="date"
+              value={transactionFormData.date}
+              onChange={(e) =>
+                setTransactionFormData({ ...transactionFormData, date: e.target.value })
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="category">Categoria</Label>
+            <Select
+              value={transactionFormData.categoryId?.toString() || ""}
+              onValueChange={(value) =>
+                setTransactionFormData({
+                  ...transactionFormData,
+                  categoryId: value ? parseInt(value) : undefined,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categoriesQuery.data?.map((category) => (
+                  <SelectItem key={category.id} value={category.id.toString()}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setOpenTransactionDialog(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleCreateTransaction} disabled={createTransactionMutation.isPending}>
+            {createTransactionMutation.isPending ? "Salvando..." : "Salvar"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 
   if (creditCards.length === 0) {
     return (
@@ -148,9 +377,12 @@ export default function CreditCards() {
             <p className="text-muted-foreground mb-4">
               Nenhum cartão de crédito cadastrado.
             </p>
-            <Button>Cadastrar Cartão de Crédito</Button>
+            <Button onClick={() => setOpenCardDialog(true)}>
+              Cadastrar Cartão de Crédito
+            </Button>
           </CardContent>
         </Card>
+        {renderCardDialog()}
       </div>
     );
   }
@@ -415,9 +647,22 @@ export default function CreditCards() {
       <Button
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg bg-teal-500 hover:bg-teal-600"
         size="icon"
+        onClick={() => setOpenTransactionDialog(true)}
       >
         <Plus className="h-6 w-6" />
       </Button>
+
+      {/* Add Card Button */}
+      <Button
+        className="fixed bottom-6 right-24 shadow-lg"
+        variant="outline"
+        onClick={() => setOpenCardDialog(true)}
+      >
+        Novo Cartão
+      </Button>
+
+      {renderCardDialog()}
+      {renderTransactionDialog()}
     </div>
   );
 }

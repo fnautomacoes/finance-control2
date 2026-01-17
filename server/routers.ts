@@ -67,7 +67,9 @@ export const appRouter = router({
           type: z.enum(["checking", "savings", "investment", "credit_card", "other"]),
           currency: z.enum(["BRL", "USD", "EUR"]).default("BRL"),
           initialBalance: z.string().default("0"),
+          balance: z.string().default("0"),
           bankName: z.string().optional(),
+          creditLimit: z.string().optional(),
         })
       )
       .mutation(({ ctx, input }) =>
@@ -77,8 +79,9 @@ export const appRouter = router({
           type: input.type,
           currency: input.currency,
           initialBalance: input.initialBalance,
-          balance: input.initialBalance,
+          balance: input.balance || input.initialBalance,
           bankName: input.bankName,
+          creditLimit: input.creditLimit,
         })
       ),
   }),
@@ -149,11 +152,15 @@ export const appRouter = router({
         z.object({
           accountId: z.number(),
           name: z.string().min(1),
-          type: z.enum(["stock", "etf", "fund", "fii", "bond", "crypto", "real_estate", "other"]),
+          type: z.enum(["stock", "etf", "fund", "fii", "bond", "cdb", "lci_lca", "crypto", "real_estate", "other"]),
           quantity: z.string(),
           averagePrice: z.string(),
           purchaseDate: z.string(),
           ticker: z.string().optional(),
+          maturityDate: z.string().optional(),
+          cdiPercentage: z.string().optional(),
+          fixedRate: z.string().optional(),
+          institution: z.string().optional(),
         })
       )
       .mutation(({ ctx, input }) => {
@@ -168,6 +175,10 @@ export const appRouter = router({
           totalCost,
           purchaseDate: input.purchaseDate,
           ticker: input.ticker,
+          maturityDate: input.maturityDate,
+          cdiPercentage: input.cdiPercentage,
+          fixedRate: input.fixedRate,
+          institution: input.institution,
         });
       }),
   }),
@@ -239,6 +250,8 @@ export const appRouter = router({
           dueDate: z.string(),
           contactId: z.number().optional(),
           categoryId: z.number().optional(),
+          status: z.enum(["pending", "paid", "overdue", "cancelled"]).optional(),
+          paidDate: z.string().optional(),
         })
       )
       .mutation(({ ctx, input }) =>
@@ -249,6 +262,8 @@ export const appRouter = router({
           dueDate: input.dueDate,
           contactId: input.contactId,
           categoryId: input.categoryId,
+          status: input.status,
+          paidDate: input.paidDate,
         })
       ),
   }),
@@ -266,6 +281,8 @@ export const appRouter = router({
           dueDate: z.string(),
           contactId: z.number().optional(),
           categoryId: z.number().optional(),
+          status: z.enum(["pending", "received", "overdue", "cancelled"]).optional(),
+          receivedDate: z.string().optional(),
         })
       )
       .mutation(({ ctx, input }) =>
@@ -276,6 +293,8 @@ export const appRouter = router({
           dueDate: input.dueDate,
           contactId: input.contactId,
           categoryId: input.categoryId,
+          status: input.status,
+          receivedDate: input.receivedDate,
         })
       ),
   }),
