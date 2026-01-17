@@ -23,11 +23,33 @@ EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;
 
+-- ==================== API TOKENS TABLE ====================
+-- Create API Tokens table for REST API Bearer authentication
+CREATE TABLE IF NOT EXISTS "apiTokens" (
+    "id" SERIAL PRIMARY KEY,
+    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "name" VARCHAR(100) NOT NULL,
+    "token" VARCHAR(64) NOT NULL UNIQUE,
+    "lastUsedAt" TIMESTAMP,
+    "expiresAt" TIMESTAMP,
+    "isActive" BOOLEAN DEFAULT true,
+    "createdAt" TIMESTAMP DEFAULT NOW() NOT NULL,
+    "updatedAt" TIMESTAMP DEFAULT NOW() NOT NULL
+);
+
+-- Create indexes for faster token lookup
+CREATE INDEX IF NOT EXISTS "idx_apiTokens_token" ON "apiTokens" ("token");
+CREATE INDEX IF NOT EXISTS "idx_apiTokens_userId" ON "apiTokens" ("userId");
+CREATE INDEX IF NOT EXISTS "idx_apiTokens_active" ON "apiTokens" ("isActive") WHERE "isActive" = true;
+
+-- ==================== VERIFICATION ====================
 -- Verify the changes
-SELECT column_name, data_type 
-FROM information_schema.columns 
+SELECT column_name, data_type
+FROM information_schema.columns
 WHERE table_name = 'accounts' AND column_name = 'creditLimit';
 
-SELECT column_name, data_type 
-FROM information_schema.columns 
+SELECT column_name, data_type
+FROM information_schema.columns
 WHERE table_name = 'investments' AND column_name IN ('maturityDate', 'cdiPercentage', 'fixedRate', 'institution');
+
+SELECT table_name FROM information_schema.tables WHERE table_name = 'apiTokens';

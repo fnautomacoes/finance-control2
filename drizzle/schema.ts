@@ -366,3 +366,21 @@ export const netWorthHistory = pgTable("netWorthHistory", {
 
 export type NetWorthHistory = typeof netWorthHistory.$inferSelect;
 export type InsertNetWorthHistory = typeof netWorthHistory.$inferInsert;
+
+/**
+ * API Tokens para autenticação via Bearer token
+ */
+export const apiTokens = pgTable("apiTokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  lastUsedAt: timestamp("lastUsedAt"),
+  expiresAt: timestamp("expiresAt"),
+  isActive: boolean("isActive").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type ApiToken = typeof apiTokens.$inferSelect;
+export type InsertApiToken = typeof apiTokens.$inferInsert;
