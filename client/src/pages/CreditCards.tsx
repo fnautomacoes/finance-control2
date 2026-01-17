@@ -10,6 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
@@ -27,7 +31,6 @@ import {
   Check,
   Search,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 
 const formatCurrency = (value: number) => {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

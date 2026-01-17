@@ -4,6 +4,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
@@ -40,9 +44,17 @@ export default function PaidReceived() {
   });
   const [showConfirmed, setShowConfirmed] = useState(true);
   const [showReconciled, setShowReconciled] = useState(true);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [formData, setFormData] = useState({
+    description: "",
+    amount: "",
+    paidDate: new Date().toISOString().split("T")[0],
+  });
 
   const payablesQuery = trpc.payables.list.useQuery();
   const receivablesQuery = trpc.receivables.list.useQuery();
+  const createPayableMutation = trpc.payables.create.useMutation();
+  const createReceivableMutation = trpc.receivables.create.useMutation();
 
   const navigatePeriod = (direction: "prev" | "next") => {
     const days = direction === "prev" ? -7 : 7;
@@ -56,6 +68,45 @@ export default function PaidReceived() {
       newDate.setDate(newDate.getDate() + days);
       return newDate;
     });
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.description || !formData.amount || !formData.paidDate) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    try {
+      if (activeTab === "paid") {
+        await createPayableMutation.mutateAsync({
+          description: formData.description,
+          amount: formData.amount,
+          dueDate: formData.paidDate,
+          status: "paid",
+          paidDate: formData.paidDate,
+        });
+        toast.success("Despesa paga registrada com sucesso!");
+        payablesQuery.refetch();
+      } else {
+        await createReceivableMutation.mutateAsync({
+          description: formData.description,
+          amount: formData.amount,
+          dueDate: formData.paidDate,
+          status: "received",
+          receivedDate: formData.paidDate,
+        });
+        toast.success("Receita recebida registrada com sucesso!");
+        receivablesQuery.refetch();
+      }
+      setOpenDialog(false);
+      setFormData({
+        description: "",
+        amount: "",
+        paidDate: new Date().toISOString().split("T")[0],
+      });
+    } catch (error) {
+      toast.error("Erro ao registrar");
+    }
   };
 
   // Filter paid items
@@ -315,9 +366,78 @@ export default function PaidReceived() {
       <Button
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg bg-teal-500 hover:bg-teal-600"
         size="icon"
+        onClick={() => setOpenDialog(true)}
       >
         <Plus className="h-6 w-6" />
       </Button>
+
+      {/* Create Dialog */}
+      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {activeTab === "paid" ? "Registrar Despesa Paga" : "Registrar Receita Recebida"}
+            </DialogTitle>
+            <DialogDescription>
+              {activeTab === "paid"
+                ? "Registre uma despesa já paga"
+                : "Registre uma receita já recebida"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrição *</Label>
+              <Input
+                id="description"
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                placeholder="Ex: Aluguel, Salário..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="amount">Valor *</Label>
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                value={formData.amount}
+                onChange={(e) =>
+                  setFormData({ ...formData, amount: e.target.value })
+                }
+                placeholder="0,00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paidDate">
+                {activeTab === "paid" ? "Data do Pagamento *" : "Data do Recebimento *"}
+              </Label>
+              <Input
+                id="paidDate"
+                type="date"
+                value={formData.paidDate}
+                onChange={(e) =>
+                  setFormData({ ...formData, paidDate: e.target.value })
+                }
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpenDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={createPayableMutation.isPending || createReceivableMutation.isPending}
+            >
+              {createPayableMutation.isPending || createReceivableMutation.isPending
+                ? "Salvando..."
+                : "Salvar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
