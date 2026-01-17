@@ -6,12 +6,20 @@ import { z } from "zod";
 import {
   getUserAccounts,
   createAccount,
+  updateAccount,
+  deleteAccount,
   getUserCategories,
   createCategory,
+  updateCategory,
+  deleteCategory,
   getUserTransactions,
   createTransaction,
+  updateTransaction,
+  deleteTransaction,
   getUserInvestments,
   createInvestment,
+  updateInvestment,
+  deleteInvestment,
   getUserGoals,
   createGoal,
   getUserContacts,
@@ -84,6 +92,31 @@ export const appRouter = router({
           creditLimit: input.creditLimit,
         })
       ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).optional(),
+          type: z.enum(["checking", "savings", "investment", "credit_card", "other"]).optional(),
+          bankName: z.string().optional(),
+          creditLimit: z.string().optional(),
+          balance: z.string().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateAccount(input.id, ctx.user.id, {
+          name: input.name,
+          type: input.type,
+          bankName: input.bankName,
+          creditLimit: input.creditLimit,
+          balance: input.balance,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteAccount(input.id, ctx.user.id)
+      ),
   }),
 
   // Categorias
@@ -108,6 +141,29 @@ export const appRouter = router({
           description: input.description,
           color: input.color,
         })
+      ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).optional(),
+          type: z.enum(["income", "expense"]).optional(),
+          description: z.string().optional(),
+          color: z.string().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateCategory(input.id, ctx.user.id, {
+          name: input.name,
+          type: input.type,
+          description: input.description,
+          color: input.color,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteCategory(input.id, ctx.user.id)
       ),
   }),
 
@@ -139,6 +195,35 @@ export const appRouter = router({
           categoryId: input.categoryId,
           notes: input.notes,
         })
+      ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          accountId: z.number().optional(),
+          description: z.string().min(1).optional(),
+          amount: z.string().optional(),
+          type: z.enum(["income", "expense"]).optional(),
+          date: z.string().optional(),
+          categoryId: z.number().optional(),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateTransaction(input.id, ctx.user.id, {
+          accountId: input.accountId,
+          description: input.description,
+          amount: input.amount,
+          type: input.type,
+          date: input.date,
+          categoryId: input.categoryId,
+          notes: input.notes,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteTransaction(input.id, ctx.user.id)
       ),
   }),
 
@@ -181,6 +266,35 @@ export const appRouter = router({
           institution: input.institution,
         });
       }),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).optional(),
+          type: z.enum(["stock", "etf", "fund", "fii", "bond", "cdb", "lci_lca", "crypto", "real_estate", "other"]).optional(),
+          quantity: z.string().optional(),
+          averagePrice: z.string().optional(),
+          currentPrice: z.string().optional(),
+          ticker: z.string().optional(),
+          maturityDate: z.string().optional(),
+          cdiPercentage: z.string().optional(),
+          fixedRate: z.string().optional(),
+          institution: z.string().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) => {
+        const updateData: any = { ...input };
+        delete updateData.id;
+        if (input.quantity && input.averagePrice) {
+          updateData.totalCost = (parseFloat(input.quantity) * parseFloat(input.averagePrice)).toString();
+        }
+        return updateInvestment(input.id, ctx.user.id, updateData);
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteInvestment(input.id, ctx.user.id)
+      ),
   }),
 
   // Metas
