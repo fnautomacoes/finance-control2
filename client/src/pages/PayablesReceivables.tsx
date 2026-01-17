@@ -15,7 +15,11 @@ import {
   Plus,
   MoreVertical,
   RefreshCw,
+  Maximize2,
+  Printer,
+  Download,
 } from "lucide-react";
+import { exportToCSV, printPage, toggleFullscreen, formatCurrencyForExport, formatDateForExport } from "@/lib/export-utils";
 
 const formatCurrency = (value: number) => {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -307,6 +311,45 @@ export default function PayablesReceivables() {
                   <div className="w-2 h-2 rounded-full bg-yellow-500" />
                   <span className="text-sm">Agendados</span>
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleFullscreen}
+                  title="Tela cheia"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    const data = activeTab === "payables" ? filteredPayables : filteredReceivables;
+                    const exportData = data.map((item) => ({
+                      Descrição: item.description,
+                      Valor: formatCurrencyForExport(parseFloat(item.amount as string)),
+                      Vencimento: formatDateForExport(item.dueDate),
+                      Status: item.status || "pending",
+                    }));
+                    exportToCSV(
+                      exportData,
+                      `contas-${activeTab === "payables" ? "pagar" : "receber"}-${formatDateForExport(new Date())}`
+                    );
+                    toast.success("Dados exportados com sucesso!");
+                  }}
+                  title="Exportar CSV"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={printPage}
+                  title="Imprimir"
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 

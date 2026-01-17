@@ -22,7 +22,11 @@ import {
   MoreVertical,
   Check,
   Search,
+  Maximize2,
+  Printer,
+  Download,
 } from "lucide-react";
+import { exportToCSV, printPage, toggleFullscreen, formatCurrencyForExport, formatDateForExport } from "@/lib/export-utils";
 
 const formatCurrency = (value: number) => {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -554,6 +558,44 @@ export default function CreditCards() {
                   className="pl-9 w-48"
                 />
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleFullscreen}
+                title="Tela cheia"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  const exportData = cardTransactions.map((tx) => ({
+                    Data: formatDateForExport(tx.date),
+                    Descrição: tx.description,
+                    Valor: formatCurrencyForExport(parseFloat(tx.amount as string)),
+                    Tipo: tx.type === "income" ? "Crédito" : "Débito",
+                  }));
+                  exportToCSV(
+                    exportData,
+                    `cartao-${selectedCard?.name || "credito"}-${formatDateForExport(currentMonth)}`
+                  );
+                  toast.success("Dados exportados com sucesso!");
+                }}
+                title="Exportar CSV"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={printPage}
+                title="Imprimir"
+              >
+                <Printer className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 

@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Edit2, TrendingUp, PieChart as PieChartIcon, Percent, Building2 } from "lucide-react";
+import { Plus, Trash2, Edit2, TrendingUp, PieChart as PieChartIcon, Percent, Building2, Download, Printer, Maximize2 } from "lucide-react";
+import { exportToCSV, printPage, toggleFullscreen, formatCurrencyForExport, formatDateForExport } from "@/lib/export-utils";
 import { toast } from "sonner";
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -157,6 +158,53 @@ export default function Investments() {
           <h1 className="text-3xl font-bold">Investimentos</h1>
           <p className="text-muted-foreground">Gerencie sua carteira de investimentos</p>
         </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleFullscreen}
+            title="Tela cheia"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              const exportData = investments.map((inv) => {
+                const isCdi = inv.type === "cdb" || inv.type === "lci_lca";
+                const totalCost = parseFloat(inv.totalCost as string);
+                const cdiPct = parseFloat(inv.cdiPercentage as string || "100");
+                const yieldCalc = isCdi
+                  ? calculateCdiYield(totalCost, cdiPct, inv.purchaseDate)
+                  : { currentValue: totalCost, yield: 0, yieldPercentage: 0 };
+
+                return {
+                  Ativo: inv.name,
+                  Tipo: inv.type,
+                  Investido: formatCurrencyForExport(totalCost),
+                  "% CDI": isCdi ? `${cdiPct}%` : "-",
+                  "Valor Atual": formatCurrencyForExport(yieldCalc.currentValue),
+                  Rendimento: isCdi ? formatCurrencyForExport(yieldCalc.yield) : "-",
+                  "Data Compra": formatDateForExport(inv.purchaseDate),
+                  Instituição: inv.institution || "-",
+                };
+              });
+              exportToCSV(exportData, `investimentos-${formatDateForExport(new Date())}`);
+              toast.success("Dados exportados com sucesso!");
+            }}
+            title="Exportar CSV"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={printPage}
+            title="Imprimir"
+          >
+            <Printer className="h-4 w-4" />
+          </Button>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
@@ -371,6 +419,7 @@ export default function Investments() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* KPI Cards */}
