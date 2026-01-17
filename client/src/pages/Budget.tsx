@@ -12,8 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronLeft,
   ChevronRight,
-  Calendar,
-  Settings,
   AlertCircle,
   Plus,
   TrendingUp,
@@ -329,12 +327,6 @@ export default function Budget() {
                   </span>
                   <Button variant="ghost" size="icon" onClick={() => navigateMonth("next")}>
                     <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon">
-                    <Calendar className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon">
-                    <Settings className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>

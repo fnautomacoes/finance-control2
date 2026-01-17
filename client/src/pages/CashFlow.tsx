@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Calendar, Settings, Maximize2, Printer, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -197,11 +197,6 @@ export default function CashFlow() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Fluxo de caixa</h1>
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm">
-            Renovar assinatura
-          </Button>
-        </div>
       </div>
 
       {/* Main Content */}
@@ -220,12 +215,6 @@ export default function CashFlow() {
                 </span>
                 <Button variant="ghost" size="icon" onClick={() => navigatePeriod("next")}>
                   <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <Calendar className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <Settings className="h-4 w-4" />
                 </Button>
               </div>
             </CardContent>
@@ -293,14 +282,6 @@ export default function CashFlow() {
                 />
                 <span className="text-sm">Desconsiderar transferências intracaixa</span>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon">
-                <Maximize2 className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Printer className="h-4 w-4" />
-              </Button>
             </div>
           </div>
 

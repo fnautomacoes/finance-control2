@@ -17,17 +17,9 @@ import { toast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
-  Calendar,
   Edit2,
-  FileText,
-  Copy,
-  Filter,
-  Maximize2,
-  Printer,
-  Download,
   Plus,
   MoreVertical,
-  RefreshCw,
   Check,
   Search,
 } from "lucide-react";
@@ -437,9 +429,6 @@ export default function CreditCards() {
                 <Button variant="ghost" size="icon" onClick={() => navigateMonth("next")}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon">
-                  <Calendar className="h-4 w-4" />
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -565,26 +554,6 @@ export default function CreditCards() {
                   className="pl-9 w-48"
                 />
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon">
-                <FileText className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Filter className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Maximize2 className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Printer className="h-4 w-4" />
-              </Button>
             </div>
           </div>
 

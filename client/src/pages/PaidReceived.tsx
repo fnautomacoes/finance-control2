@@ -11,11 +11,6 @@ import { toast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
-  Calendar,
-  Settings,
-  Maximize2,
-  Printer,
-  Download,
   Plus,
   MoreVertical,
   ThumbsUp,
@@ -176,12 +171,6 @@ export default function PaidReceived() {
                   <Button variant="ghost" size="icon" onClick={() => navigatePeriod("next")}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon">
-                    <Calendar className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon">
-                    <Settings className="h-4 w-4" />
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -224,20 +213,6 @@ export default function PaidReceived() {
                   <div className="w-2 h-2 rounded-full bg-blue-500" />
                   <span className="text-sm">Conciliados</span>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon">
-                  <Settings className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <Maximize2 className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <Printer className="h-4 w-4" />
-                </Button>
               </div>
             </div>
 

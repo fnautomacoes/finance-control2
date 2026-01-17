@@ -284,35 +284,56 @@ export default function Investments() {
                 </>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Para CDI: apenas valor investido. Para outros: quantidade e preço médio */}
+              {isCdiInvestment ? (
                 <div>
-                  <Label htmlFor="quantity">Quantidade *</Label>
-                  <Input
-                    id="quantity"
-                    name="quantity"
-                    type="number"
-                    step="0.01"
-                    value={formData.quantity}
-                    onChange={handleInputChange}
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="averagePrice">Preço Médio *</Label>
+                  <Label htmlFor="averagePrice">Valor Investido (R$) *</Label>
                   <Input
                     id="averagePrice"
                     name="averagePrice"
                     type="number"
                     step="0.01"
                     value={formData.averagePrice}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      // Para CDI, quantidade = 1 automaticamente
+                      setFormData(prev => ({ ...prev, quantity: "1" }));
+                    }}
                     placeholder="0.00"
                     required
                   />
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="quantity">Quantidade *</Label>
+                    <Input
+                      id="quantity"
+                      name="quantity"
+                      type="number"
+                      step="0.01"
+                      value={formData.quantity}
+                      onChange={handleInputChange}
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="averagePrice">Preço Médio *</Label>
+                    <Input
+                      id="averagePrice"
+                      name="averagePrice"
+                      type="number"
+                      step="0.01"
+                      value={formData.averagePrice}
+                      onChange={handleInputChange}
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
