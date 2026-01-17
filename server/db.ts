@@ -283,7 +283,8 @@ export async function getUserGoals(userId: number) {
 export async function createGoal(data: InsertGoal) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(goals).values(data);
+  const result = await db.insert(goals).values(data).returning();
+  return result[0];
 }
 
 /**
@@ -298,7 +299,8 @@ export async function getUserContacts(userId: number) {
 export async function createContact(data: InsertContact) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(contacts).values(data);
+  const result = await db.insert(contacts).values(data).returning();
+  return result[0];
 }
 
 /**
@@ -313,7 +315,8 @@ export async function getUserPayables(userId: number) {
 export async function createPayable(data: InsertPayable) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(payables).values(data);
+  const result = await db.insert(payables).values(data).returning();
+  return result[0];
 }
 
 /**
@@ -328,7 +331,8 @@ export async function getUserReceivables(userId: number) {
 export async function createReceivable(data: InsertReceivable) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(receivables).values(data);
+  const result = await db.insert(receivables).values(data).returning();
+  return result[0];
 }
 
 /**
@@ -343,7 +347,8 @@ export async function getUserAssets(userId: number) {
 export async function createAsset(data: InsertAsset) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(assets).values(data);
+  const result = await db.insert(assets).values(data).returning();
+  return result[0];
 }
 
 /**
@@ -358,7 +363,8 @@ export async function getUserLiabilities(userId: number) {
 export async function createLiability(data: InsertLiability) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.insert(liabilities).values(data);
+  const result = await db.insert(liabilities).values(data).returning();
+  return result[0];
 }
 
 /**
