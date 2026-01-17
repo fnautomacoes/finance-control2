@@ -35,6 +35,15 @@ interface AuthenticatedRequest extends Request {
 
 // ==================== SCHEMAS DE VALIDAÇÃO ====================
 
+// Helper para aceitar string ou número e converter para número
+const stringOrNumber = z.union([z.string(), z.number()]).transform((val) =>
+  typeof val === "string" ? parseInt(val, 10) : val
+);
+
+const optionalStringOrNumber = z.union([z.string(), z.number()]).transform((val) =>
+  typeof val === "string" ? parseInt(val, 10) : val
+).optional().nullable();
+
 // Schema para criação de transação
 const createTransactionSchema = z.object({
   // Campos obrigatórios
@@ -46,12 +55,12 @@ const createTransactionSchema = z.object({
     errorMap: () => ({ message: "Tipo deve ser 'income' (receita) ou 'expense' (despesa)" }),
   }),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato YYYY-MM-DD"),
-  accountId: z.number().int().positive("ID da conta é obrigatório"),
+  accountId: stringOrNumber.refine((val) => val > 0, "ID da conta é obrigatório"),
 
   // Campos opcionais
-  categoryId: z.number().int().positive().optional().nullable(),
-  projectId: z.number().int().positive().optional().nullable(),
-  contactId: z.number().int().positive().optional().nullable(),
+  categoryId: optionalStringOrNumber,
+  projectId: optionalStringOrNumber,
+  contactId: optionalStringOrNumber,
   status: z.enum(["pending", "completed", "cancelled"]).default("completed"),
   notes: z.string().max(1000).optional().nullable(),
   attachments: z.any().optional().nullable(),
@@ -475,11 +484,11 @@ router.post("/transactions", bearerAuth, async (req: AuthenticatedRequest, res: 
       },
       message: `${data.type === "income" ? "Receita" : "Despesa"} criada com sucesso`,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[API] Create transaction error:", error);
     return res.status(500).json({
       error: "Internal Server Error",
-      message: "Erro ao criar transação",
+      message: "Erro ao criar transação: " + (error?.message || "erro desconhecido"),
     });
   }
 });
