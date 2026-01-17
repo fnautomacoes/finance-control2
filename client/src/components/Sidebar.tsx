@@ -33,6 +33,7 @@ import {
   Download,
   Lock,
   Sliders,
+  Key,
 } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -120,6 +121,11 @@ const menuItems: MenuItem[] = [
     name: "Configurações de utilização",
     href: "/settings",
     icon: Sliders,
+  },
+  {
+    name: "API",
+    href: "/api-settings",
+    icon: Key,
   },
 ];
 
