@@ -6,9 +6,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Edit2, TrendingUp, PieChart as PieChartIcon } from "lucide-react";
+import { Plus, Trash2, Edit2, TrendingUp, PieChart as PieChartIcon, Percent, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+
+// Função para calcular rendimento CDI
+const CDI_ANNUAL_RATE = 0.1315; // 13.15% ao ano (taxa CDI aproximada)
+
+function calculateCdiYield(
+  investedAmount: number,
+  cdiPercentage: number,
+  purchaseDate: string
+): { currentValue: number; yield: number; yieldPercentage: number } {
+  const purchase = new Date(purchaseDate);
+  const today = new Date();
+  const daysDiff = Math.floor((today.getTime() - purchase.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysDiff <= 0) {
+    return { currentValue: investedAmount, yield: 0, yieldPercentage: 0 };
+  }
+
+  // Taxa diária do CDI: (1 + taxa_anual)^(1/252) - 1
+  const dailyCdiRate = Math.pow(1 + CDI_ANNUAL_RATE, 1 / 252) - 1;
+
+  // Taxa ajustada pelo percentual do CDI (ex: 100% CDI, 120% CDI)
+  const adjustedDailyRate = dailyCdiRate * (cdiPercentage / 100);
+
+  // Rendimento composto: Valor * (1 + taxa_diária)^dias
+  const currentValue = investedAmount * Math.pow(1 + adjustedDailyRate, daysDiff);
+  const yieldValue = currentValue - investedAmount;
+  const yieldPercentage = (yieldValue / investedAmount) * 100;
+
+  return { currentValue, yield: yieldValue, yieldPercentage };
+}
 
 export default function Investments() {
   const [open, setOpen] = useState(false);
@@ -16,10 +46,15 @@ export default function Investments() {
     accountId: 1,
     name: "",
     ticker: "",
-    type: "stock" as const,
+    type: "stock" as "stock" | "etf" | "fund" | "fii" | "bond" | "cdb" | "lci_lca" | "crypto" | "real_estate" | "other",
     quantity: "",
     averagePrice: "",
     purchaseDate: new Date().toISOString().split("T")[0],
+    // Campos CDI
+    cdiPercentage: "100",
+    fixedRate: "",
+    maturityDate: "",
+    institution: "",
   });
 
   // Queries
@@ -27,13 +62,20 @@ export default function Investments() {
   const accountsQuery = trpc.accounts.list.useQuery();
   const createInvestmentMutation = trpc.investments.create.useMutation();
 
+  const isCdiInvestment = formData.type === "cdb" || formData.type === "lci_lca";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       await createInvestmentMutation.mutateAsync({
         ...formData,
+        accountId: Number(formData.accountId),
         purchaseDate: new Date(formData.purchaseDate).toISOString(),
+        maturityDate: formData.maturityDate ? new Date(formData.maturityDate).toISOString() : undefined,
+        cdiPercentage: isCdiInvestment ? formData.cdiPercentage : undefined,
+        fixedRate: formData.fixedRate || undefined,
+        institution: formData.institution || undefined,
       });
       toast.success("Investimento criado com sucesso!");
       setFormData({
@@ -44,6 +86,10 @@ export default function Investments() {
         quantity: "",
         averagePrice: "",
         purchaseDate: new Date().toISOString().split("T")[0],
+        cdiPercentage: "100",
+        fixedRate: "",
+        maturityDate: "",
+        institution: "",
       });
       setOpen(false);
       investmentsQuery.refetch();
@@ -161,6 +207,8 @@ export default function Investments() {
                       <SelectItem value="fund">Fundo</SelectItem>
                       <SelectItem value="fii">FII</SelectItem>
                       <SelectItem value="bond">Título</SelectItem>
+                      <SelectItem value="cdb">CDB</SelectItem>
+                      <SelectItem value="lci_lca">LCI/LCA</SelectItem>
                       <SelectItem value="crypto">Criptomoeda</SelectItem>
                       <SelectItem value="real_estate">Imóvel</SelectItem>
                       <SelectItem value="other">Outro</SelectItem>
@@ -168,6 +216,73 @@ export default function Investments() {
                   </Select>
                 </div>
               </div>
+
+              {/* Campos específicos para CDB/LCI/LCA */}
+              {isCdiInvestment && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="cdiPercentage">% do CDI *</Label>
+                      <div className="relative">
+                        <Input
+                          id="cdiPercentage"
+                          name="cdiPercentage"
+                          type="number"
+                          step="0.01"
+                          value={formData.cdiPercentage}
+                          onChange={handleInputChange}
+                          placeholder="100"
+                          className="pr-8"
+                          required
+                        />
+                        <Percent className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Ex: 100, 110, 120</p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="fixedRate">Taxa Prefixada (opcional)</Label>
+                      <Input
+                        id="fixedRate"
+                        name="fixedRate"
+                        type="number"
+                        step="0.01"
+                        value={formData.fixedRate}
+                        onChange={handleInputChange}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="maturityDate">Data de Vencimento</Label>
+                      <Input
+                        id="maturityDate"
+                        name="maturityDate"
+                        type="date"
+                        value={formData.maturityDate}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="institution">Instituição</Label>
+                      <div className="relative">
+                        <Input
+                          id="institution"
+                          name="institution"
+                          value={formData.institution}
+                          onChange={handleInputChange}
+                          placeholder="Ex: Nubank, Inter, C6"
+                          className="pr-8"
+                        />
+                        <Building2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -360,36 +475,86 @@ export default function Investments() {
                     <tr>
                       <th className="text-left py-2 px-4">Ativo</th>
                       <th className="text-left py-2 px-4">Tipo</th>
-                      <th className="text-right py-2 px-4">Quantidade</th>
-                      <th className="text-right py-2 px-4">Preço Médio</th>
-                      <th className="text-right py-2 px-4">Total Investido</th>
+                      <th className="text-right py-2 px-4">Investido</th>
+                      <th className="text-right py-2 px-4">% CDI</th>
+                      <th className="text-right py-2 px-4">Valor Atual</th>
+                      <th className="text-right py-2 px-4">Rendimento</th>
                       <th className="text-center py-2 px-4">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {investments.map((inv) => (
-                      <tr key={inv.id} className="border-b hover:bg-muted/50">
-                        <td className="py-3 px-4 font-medium">{inv.name}</td>
-                        <td className="py-3 px-4 capitalize">{inv.type}</td>
-                        <td className="py-3 px-4 text-right">{parseFloat(inv.quantity as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                        <td className="py-3 px-4 text-right">
-                          R$ {parseFloat(inv.averagePrice as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="py-3 px-4 text-right font-bold">
-                          R$ {parseFloat(inv.totalCost as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex justify-center gap-2">
-                            <Button variant="ghost" size="sm">
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-red-600">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {investments.map((inv) => {
+                      const isCdi = inv.type === "cdb" || inv.type === "lci_lca";
+                      const totalCost = parseFloat(inv.totalCost as string);
+                      const cdiPct = parseFloat(inv.cdiPercentage as string || "100");
+
+                      // Calcula rendimento CDI se for CDB/LCI/LCA
+                      const yieldCalc = isCdi
+                        ? calculateCdiYield(totalCost, cdiPct, inv.purchaseDate)
+                        : { currentValue: parseFloat(inv.currentValue as string || inv.totalCost as string), yield: 0, yieldPercentage: 0 };
+
+                      const typeLabels: Record<string, string> = {
+                        stock: "Ação",
+                        etf: "ETF",
+                        fund: "Fundo",
+                        fii: "FII",
+                        bond: "Título",
+                        cdb: "CDB",
+                        lci_lca: "LCI/LCA",
+                        crypto: "Cripto",
+                        real_estate: "Imóvel",
+                        other: "Outro",
+                      };
+
+                      return (
+                        <tr key={inv.id} className="border-b hover:bg-muted/50">
+                          <td className="py-3 px-4">
+                            <div>
+                              <p className="font-medium">{inv.name}</p>
+                              {inv.institution && (
+                                <p className="text-xs text-muted-foreground">{inv.institution}</p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">{typeLabels[inv.type] || inv.type}</td>
+                          <td className="py-3 px-4 text-right">
+                            R$ {totalCost.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            {isCdi ? (
+                              <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
+                                {cdiPct}%
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right font-bold">
+                            R$ {yieldCalc.currentValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            {isCdi && yieldCalc.yield > 0 ? (
+                              <div className="text-green-600">
+                                <p className="font-medium">+R$ {yieldCalc.yield.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                                <p className="text-xs">+{yieldCalc.yieldPercentage.toFixed(2)}%</p>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex justify-center gap-2">
+                              <Button variant="ghost" size="sm">
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-red-600">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
