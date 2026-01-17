@@ -52,7 +52,7 @@ const createTransactionSchema = z.object({
     typeof val === "number" ? val.toString() : val
   ),
   type: z.enum(["income", "expense"], {
-    errorMap: () => ({ message: "Tipo deve ser 'income' (receita) ou 'expense' (despesa)" }),
+    message: "Tipo deve ser 'income' (receita) ou 'expense' (despesa)",
   }),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato YYYY-MM-DD"),
   accountId: stringOrNumber.refine((val) => val > 0, "ID da conta é obrigatório"),
@@ -206,8 +206,8 @@ function handleValidationError(res: Response, error: z.ZodError) {
   return res.status(400).json({
     error: "Validation Error",
     message: "Dados inválidos",
-    details: error.errors.map((e) => ({
-      field: e.path.join("."),
+    details: error.issues.map((e) => ({
+      field: e.path.map(String).join("."),
       message: e.message,
     })),
   });

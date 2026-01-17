@@ -5,14 +5,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Edit2, TrendingUp, TrendingDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 type TransactionStatus = "pending" | "scheduled" | "confirmed" | "cancelled";
 
+type Transaction = {
+  id: number;
+  accountId: number;
+  description: string;
+  amount: string;
+  type: "income" | "expense";
+  date: string;
+  categoryId?: number | null;
+  notes?: string | null;
+};
+
 export default function Transactions() {
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
   const [selectedAccount, setSelectedAccount] = useState<number>(1);
   const [filterStatus, setFilterStatus] = useState<TransactionStatus | "all">("all");
@@ -20,7 +35,16 @@ export default function Transactions() {
     accountId: 1,
     description: "",
     amount: "",
-    type: "expense" as const,
+    type: "expense" as "income" | "expense",
+    date: new Date().toISOString().split("T")[0],
+    categoryId: undefined as number | undefined,
+    notes: "",
+  });
+  const [editFormData, setEditFormData] = useState({
+    accountId: 1,
+    description: "",
+    amount: "",
+    type: "expense" as "income" | "expense",
     date: new Date().toISOString().split("T")[0],
     categoryId: undefined as number | undefined,
     notes: "",
@@ -31,6 +55,8 @@ export default function Transactions() {
   const accountsQuery = trpc.accounts.list.useQuery();
   const categoriesQuery = trpc.categories.list.useQuery();
   const createTransactionMutation = trpc.transactions.create.useMutation();
+  const updateTransactionMutation = trpc.transactions.update.useMutation();
+  const deleteTransactionMutation = trpc.transactions.delete.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +97,80 @@ export default function Transactions() {
       ...prev,
       [name]: name === "categoryId" ? parseInt(value) : value,
     }));
+  };
+
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleEditSelectChange = (name: string, value: string) => {
+    setEditFormData((prev) => ({
+      ...prev,
+      [name]: name === "categoryId" ? parseInt(value) : value,
+    }));
+  };
+
+  const handleEdit = (tx: Transaction) => {
+    setSelectedTransaction(tx);
+    setEditFormData({
+      accountId: tx.accountId,
+      description: tx.description,
+      amount: tx.amount,
+      type: tx.type,
+      date: new Date(tx.date).toISOString().split("T")[0],
+      categoryId: tx.categoryId ?? undefined,
+      notes: tx.notes ?? "",
+    });
+    setEditOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTransaction) return;
+
+    try {
+      await updateTransactionMutation.mutateAsync({
+        id: selectedTransaction.id,
+        accountId: editFormData.accountId,
+        description: editFormData.description,
+        amount: editFormData.amount,
+        type: editFormData.type,
+        date: new Date(editFormData.date).toISOString(),
+        categoryId: editFormData.categoryId,
+        notes: editFormData.notes,
+      });
+      toast.success("Transação atualizada com sucesso!");
+      setEditOpen(false);
+      setSelectedTransaction(null);
+      transactionsQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao atualizar transação");
+      console.error(error);
+    }
+  };
+
+  const handleDeleteClick = (tx: Transaction) => {
+    setSelectedTransaction(tx);
+    setDeleteOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedTransaction) return;
+
+    try {
+      await deleteTransactionMutation.mutateAsync({ id: selectedTransaction.id });
+      toast.success("Transação excluída com sucesso!");
+      setDeleteOpen(false);
+      setSelectedTransaction(null);
+      transactionsQuery.refetch();
+    } catch (error) {
+      toast.error("Erro ao excluir transação");
+      console.error(error);
+    }
   };
 
   const filteredTransactions = transactionsQuery.data?.filter((tx) => {
@@ -388,47 +488,51 @@ export default function Transactions() {
                   </div>
 
                   {/* Transactions */}
-                  {transactionsWithBalance.map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="p-4 hover:bg-muted/50 transition-colors flex items-center justify-between gap-4"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div
-                            className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                              tx.type === "income" ? "bg-green-500" : "bg-red-500"
-                            }`}
-                          />
-                          <span className="text-sm font-medium truncate">{new Date(tx.date).toLocaleDateString("pt-BR")}</span>
-                        </div>
-                        <p className="text-sm font-medium truncate">{tx.description}</p>
-                        <p className="text-xs text-muted-foreground">Categoria</p>
-                      </div>
-
-                      <div className="flex items-center gap-4 flex-shrink-0">
-                        <div className="text-right">
-                          <p className={`text-sm font-bold ${tx.type === "income" ? "text-green-600" : "text-red-600"}`}>
-                            {tx.type === "income" ? "+" : "-"} R$ {parseFloat(tx.amount as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                          </p>
-                        </div>
-                        <div className="text-right min-w-[100px]">
-                          <p className="text-sm font-bold text-green-600">
-                            R$ {tx.runningBalance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                          </p>
+                  {transactionsWithBalance.map((tx) => {
+                    const category = categoriesQuery.data?.find((c) => c.id === tx.categoryId);
+                    return (
+                      <div
+                        key={tx.id}
+                        className="p-4 hover:bg-muted/50 transition-colors flex items-center justify-between gap-4"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs text-muted-foreground font-mono">#{tx.id}</span>
+                            <div
+                              className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                                tx.type === "income" ? "bg-green-500" : "bg-red-500"
+                              }`}
+                            />
+                            <span className="text-sm font-medium truncate">{new Date(tx.date).toLocaleDateString("pt-BR")}</span>
+                          </div>
+                          <p className="text-sm font-medium truncate">{tx.description}</p>
+                          <p className="text-xs text-muted-foreground">{category?.name || "Sem categoria"}</p>
                         </div>
 
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                        <div className="flex items-center gap-4 flex-shrink-0">
+                          <div className="text-right">
+                            <p className={`text-sm font-bold ${tx.type === "income" ? "text-green-600" : "text-red-600"}`}>
+                              {tx.type === "income" ? "+" : "-"} R$ {parseFloat(tx.amount as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                          <div className="text-right min-w-[100px]">
+                            <p className="text-sm font-bold text-green-600">
+                              R$ {tx.runningBalance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleEdit(tx as Transaction)}>
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600" onClick={() => handleDeleteClick(tx as Transaction)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-12">
@@ -443,6 +547,150 @@ export default function Transactions() {
           </Card>
         </div>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Transação #{selectedTransaction?.id}</DialogTitle>
+            <DialogDescription>Atualize os dados da transação</DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="edit-description">Descrição *</Label>
+              <Input
+                id="edit-description"
+                name="description"
+                value={editFormData.description}
+                onChange={handleEditInputChange}
+                placeholder="Ex: Compra no supermercado"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-type">Tipo *</Label>
+                <Select value={editFormData.type} onValueChange={(value) => handleEditSelectChange("type", value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="income">Receita</SelectItem>
+                    <SelectItem value="expense">Despesa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-amount">Valor *</Label>
+                <Input
+                  id="edit-amount"
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  value={editFormData.amount}
+                  onChange={handleEditInputChange}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-date">Data *</Label>
+                <Input
+                  id="edit-date"
+                  name="date"
+                  type="date"
+                  value={editFormData.date}
+                  onChange={handleEditInputChange}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-accountId">Conta *</Label>
+                <Select value={editFormData.accountId.toString()} onValueChange={(value) => handleEditSelectChange("accountId", value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accountsQuery.data?.map((account) => (
+                      <SelectItem key={account.id} value={account.id.toString()}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="edit-categoryId">Categoria</Label>
+              <Select
+                value={editFormData.categoryId?.toString() || ""}
+                onValueChange={(value) => handleEditSelectChange("categoryId", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoriesQuery.data?.map((category) => (
+                    <SelectItem key={category.id} value={category.id.toString()}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="edit-notes">Notas</Label>
+              <Input
+                id="edit-notes"
+                name="notes"
+                value={editFormData.notes}
+                onChange={handleEditInputChange}
+                placeholder="Observações adicionais"
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateTransactionMutation.isPending}>
+                {updateTransactionMutation.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Transação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a transação "{selectedTransaction?.description}"?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteTransactionMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
