@@ -16,6 +16,7 @@ import PayablesReceivables from "./pages/PayablesReceivables";
 import PaidReceived from "./pages/PaidReceived";
 import CreditCards from "./pages/CreditCards";
 import Budget from "./pages/Budget";
+import ApiSettings from "./pages/ApiSettings";
 
 function AppRoutes() {
   return (
@@ -31,6 +32,7 @@ function AppRoutes() {
         <Route path={"/paid-received"} component={PaidReceived} />
         <Route path={"/credit-cards"} component={CreditCards} />
         <Route path={"/budget"} component={Budget} />
+        <Route path={"/api-settings"} component={ApiSettings} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
