@@ -164,6 +164,29 @@ async function bearerAuth(req: AuthenticatedRequest, res: Response, next: NextFu
   }
 }
 
+// Middleware que aceita Bearer token OU sessão (para UI de gerenciamento de tokens)
+async function bearerOrSessionAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  const sessionUser = (req as any).sessionUser;
+
+  // Se tem sessão, usa ela
+  if (sessionUser) {
+    req.user = sessionUser;
+    return next();
+  }
+
+  // Se tem Bearer token, valida ele
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    return bearerAuth(req, res, next);
+  }
+
+  // Nenhuma autenticação válida
+  return res.status(401).json({
+    error: "Unauthorized",
+    message: "Autenticação necessária. Faça login ou use um Bearer token.",
+  });
+}
+
 // ==================== HELPERS ====================
 
 function generateToken(): string {
@@ -240,11 +263,18 @@ router.post("/tokens", async (req: AuthenticatedRequest, res: Response) => {
       },
       message: "Token criado com sucesso. Guarde-o em local seguro, pois não será exibido novamente.",
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[API] Create token error:", error);
+    // Check if it's a table not found error
+    if (error?.message?.includes("relation") && error?.message?.includes("does not exist")) {
+      return res.status(500).json({
+        error: "Database Error",
+        message: "Tabela de tokens não encontrada. Execute a migração do banco de dados.",
+      });
+    }
     return res.status(500).json({
       error: "Internal Server Error",
-      message: "Erro ao criar token",
+      message: "Erro ao criar token: " + (error?.message || "erro desconhecido"),
     });
   }
 });
@@ -252,8 +282,9 @@ router.post("/tokens", async (req: AuthenticatedRequest, res: Response) => {
 /**
  * GET /api/v1/tokens
  * Listar tokens do usuário
+ * Aceita autenticação via sessão (UI) ou Bearer token
  */
-router.get("/tokens", bearerAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.get("/tokens", bearerOrSessionAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = await getDb();
     if (!db) {
@@ -277,11 +308,17 @@ router.get("/tokens", bearerAuth, async (req: AuthenticatedRequest, res: Respons
       success: true,
       data: tokens,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[API] List tokens error:", error);
+    if (error?.message?.includes("relation") && error?.message?.includes("does not exist")) {
+      return res.status(500).json({
+        error: "Database Error",
+        message: "Tabela de tokens não encontrada. Execute a migração do banco de dados.",
+      });
+    }
     return res.status(500).json({
       error: "Internal Server Error",
-      message: "Erro ao listar tokens",
+      message: "Erro ao listar tokens: " + (error?.message || "erro desconhecido"),
     });
   }
 });
@@ -289,8 +326,9 @@ router.get("/tokens", bearerAuth, async (req: AuthenticatedRequest, res: Respons
 /**
  * DELETE /api/v1/tokens/:id
  * Revogar token
+ * Aceita autenticação via sessão (UI) ou Bearer token
  */
-router.delete("/tokens/:id", bearerAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.delete("/tokens/:id", bearerOrSessionAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tokenId = parseInt(req.params.id);
     if (isNaN(tokenId)) {
