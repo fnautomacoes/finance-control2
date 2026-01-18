@@ -8,6 +8,7 @@ import {
   createAccount,
   updateAccount,
   deleteAccount,
+  getAccountById,
   getUserCategories,
   createCategory,
   updateCategory,
@@ -45,7 +46,23 @@ import {
   updateLiability,
   deleteLiability,
   getDashboardSummary,
+  getExistingFitIds,
+  bulkInsertTransactions,
+  updateAccountBalance,
+  createOFXImport,
+  getUserOFXImports,
+  getUserCategoryMappings,
+  createCategoryMapping,
+  updateCategoryMapping,
+  deleteCategoryMapping,
 } from "./db";
+import {
+  parseOFX,
+  validateOFX,
+  prepareTransactionsForImport,
+  suggestCategory,
+  type ParsedOFXData,
+} from "./lib/ofx-parser";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -662,6 +679,201 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(({ ctx, input }) =>
         deleteLiability(input.id, ctx.user.id)
+      ),
+  }),
+
+  // OFX Import
+  ofx: router({
+    // Parse OFX file and return preview
+    parse: protectedProcedure
+      .input(
+        z.object({
+          fileContent: z.string().min(1),
+          accountId: z.number(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        // Validate the account belongs to the user
+        const account = await getAccountById(input.accountId, ctx.user.id);
+        if (!account) {
+          throw new Error("Conta não encontrada");
+        }
+
+        // Validate OFX content
+        const validation = validateOFX(input.fileContent);
+        if (!validation.valid) {
+          throw new Error(validation.error || "Arquivo OFX inválido");
+        }
+
+        // Parse OFX
+        const parsedData = parseOFX(input.fileContent);
+
+        // Get existing fitIds for duplicate detection
+        const existingFitIds = await getExistingFitIds(input.accountId, ctx.user.id);
+
+        // Get category mappings for suggestions
+        const categoryMappings = await getUserCategoryMappings(ctx.user.id);
+
+        // Prepare transactions for import
+        const transactions = prepareTransactionsForImport(parsedData, existingFitIds);
+
+        // Add category suggestions
+        const transactionsWithCategories = transactions.map((tx) => ({
+          ...tx,
+          suggestedCategoryId: suggestCategory(
+            tx.description,
+            categoryMappings.map((m) => ({ pattern: m.pattern, categoryId: m.categoryId }))
+          ),
+        }));
+
+        return {
+          bankId: parsedData.bankId,
+          bankAccountId: parsedData.accountId,
+          accountType: parsedData.accountType,
+          currency: parsedData.currency,
+          balance: parsedData.balance,
+          startDate: parsedData.startDate,
+          endDate: parsedData.endDate,
+          transactions: transactionsWithCategories,
+          summary: {
+            total: transactions.length,
+            new: transactions.filter((t) => !t.isDuplicate).length,
+            duplicates: transactions.filter((t) => t.isDuplicate).length,
+          },
+        };
+      }),
+
+    // Import selected transactions
+    import: protectedProcedure
+      .input(
+        z.object({
+          accountId: z.number(),
+          fileName: z.string().optional(),
+          bankId: z.string().optional(),
+          bankAccountId: z.string().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          transactions: z.array(
+            z.object({
+              fitId: z.string(),
+              date: z.string(),
+              amount: z.string(),
+              type: z.enum(["income", "expense"]),
+              description: z.string(),
+              categoryId: z.number().optional(),
+            })
+          ),
+          updateBalance: z.boolean().default(true),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        // Validate the account belongs to the user
+        const account = await getAccountById(input.accountId, ctx.user.id);
+        if (!account) {
+          throw new Error("Conta não encontrada");
+        }
+
+        if (input.transactions.length === 0) {
+          return { imported: 0, duplicatesSkipped: 0, balanceChange: 0 };
+        }
+
+        // Get existing fitIds to avoid duplicates
+        const existingFitIds = await getExistingFitIds(input.accountId, ctx.user.id);
+
+        // Filter out duplicates and prepare for insertion
+        const transactionsToInsert = input.transactions
+          .filter((tx) => !existingFitIds.has(tx.fitId))
+          .map((tx) => ({
+            userId: ctx.user.id,
+            accountId: input.accountId,
+            fitId: tx.fitId,
+            description: tx.description,
+            amount: tx.amount,
+            type: tx.type as "income" | "expense",
+            date: tx.date,
+            categoryId: tx.categoryId,
+            status: "completed" as const,
+          }));
+
+        // Bulk insert transactions
+        const { inserted } = await bulkInsertTransactions(transactionsToInsert);
+
+        // Calculate balance change if needed
+        let balanceChange = 0;
+        if (input.updateBalance && inserted > 0) {
+          balanceChange = transactionsToInsert.reduce((sum, tx) => {
+            const amount = parseFloat(tx.amount);
+            return sum + (tx.type === "income" ? amount : -amount);
+          }, 0);
+
+          await updateAccountBalance(input.accountId, ctx.user.id, balanceChange);
+        }
+
+        // Record import history
+        await createOFXImport({
+          userId: ctx.user.id,
+          accountId: input.accountId,
+          fileName: input.fileName,
+          bankId: input.bankId,
+          bankAccountId: input.bankAccountId,
+          transactionCount: inserted,
+          duplicateCount: input.transactions.length - inserted,
+          startDate: input.startDate,
+          endDate: input.endDate,
+        });
+
+        return {
+          imported: inserted,
+          duplicatesSkipped: input.transactions.length - inserted,
+          balanceChange,
+        };
+      }),
+
+    // Get import history
+    history: protectedProcedure.query(({ ctx }) =>
+      getUserOFXImports(ctx.user.id)
+    ),
+  }),
+
+  // Category Mappings for OFX auto-categorization
+  categoryMappings: router({
+    list: protectedProcedure.query(({ ctx }) =>
+      getUserCategoryMappings(ctx.user.id)
+    ),
+    create: protectedProcedure
+      .input(
+        z.object({
+          pattern: z.string().min(1),
+          categoryId: z.number(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        createCategoryMapping({
+          userId: ctx.user.id,
+          pattern: input.pattern,
+          categoryId: input.categoryId,
+        })
+      ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          pattern: z.string().min(1).optional(),
+          categoryId: z.number().optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateCategoryMapping(input.id, ctx.user.id, {
+          pattern: input.pattern,
+          categoryId: input.categoryId,
+          isActive: input.isActive,
+        })
+      ),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        deleteCategoryMapping(input.id, ctx.user.id)
       ),
   }),
 });

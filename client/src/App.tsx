@@ -17,6 +17,7 @@ import PaidReceived from "./pages/PaidReceived";
 import CreditCards from "./pages/CreditCards";
 import Budget from "./pages/Budget";
 import ApiSettings from "./pages/ApiSettings";
+import ImportOFX from "./pages/ImportOFX";
 
 function AppRoutes() {
   return (
@@ -33,6 +34,7 @@ function AppRoutes() {
         <Route path={"/credit-cards"} component={CreditCards} />
         <Route path={"/budget"} component={Budget} />
         <Route path={"/api-settings"} component={ApiSettings} />
+        <Route path={"/import-ofx"} component={ImportOFX} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
