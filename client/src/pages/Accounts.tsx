@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Edit2, Wallet } from "lucide-react";
+import { Plus, Trash2, Edit2, Wallet, Search, X, Filter, DollarSign, CreditCard, PiggyBank } from "lucide-react";
 import { toast } from "sonner";
 
 const ACCOUNT_TYPES: Record<string, string> = {
@@ -42,11 +43,32 @@ export default function Accounts() {
     creditLimit: "",
   });
 
+  // Filter states
+  const [filterType, setFilterType] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Queries
   const accountsQuery = trpc.accounts.list.useQuery();
   const createAccountMutation = trpc.accounts.create.useMutation();
   const updateAccountMutation = trpc.accounts.update.useMutation();
   const deleteAccountMutation = trpc.accounts.delete.useMutation();
+
+  const accounts = accountsQuery.data || [];
+
+  // Filter accounts
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter((acc) => {
+      if (filterType !== "all" && acc.type !== filterType) return false;
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        if (!acc.name.toLowerCase().includes(search) &&
+            !(acc.bankName?.toLowerCase().includes(search))) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [accounts, filterType, searchTerm]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +79,7 @@ export default function Accounts() {
         type: formData.type,
         currency: formData.currency,
         initialBalance: formData.initialBalance,
-        balance: formData.initialBalance, // Set balance equal to initialBalance on creation
+        balance: formData.initialBalance,
         bankName: formData.bankName || undefined,
         creditLimit: formData.type === "credit_card" ? formData.creditLimit : undefined,
       });
@@ -75,7 +97,6 @@ export default function Accounts() {
       accountsQuery.refetch();
     } catch (error) {
       toast.error("Erro ao criar conta");
-      console.error(error);
     }
   };
 
@@ -98,7 +119,6 @@ export default function Accounts() {
       accountsQuery.refetch();
     } catch (error) {
       toast.error("Erro ao atualizar conta");
-      console.error(error);
     }
   };
 
@@ -113,7 +133,6 @@ export default function Accounts() {
       accountsQuery.refetch();
     } catch (error) {
       toast.error("Erro ao excluir conta. Verifique se não há transações vinculadas.");
-      console.error(error);
     }
   };
 
@@ -138,20 +157,25 @@ export default function Accounts() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSelectChange = (name: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const accounts = accountsQuery.data || [];
+  const clearFilters = () => {
+    setFilterType("all");
+    setSearchTerm("");
+  };
+
+  const hasActiveFilters = filterType !== "all" || searchTerm !== "";
+
+  // Stats
+  const totalBalance = accounts.reduce((sum, acc) => sum + parseFloat(acc.balance as string), 0);
+  const checkingCount = accounts.filter((a) => a.type === "checking").length;
+  const investmentCount = accounts.filter((a) => a.type === "investment").length;
+  const creditCardCount = accounts.filter((a) => a.type === "credit_card").length;
 
   return (
     <div className="space-y-6">
@@ -266,123 +290,180 @@ export default function Accounts() {
         </Dialog>
       </div>
 
-      {/* Accounts List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {accountsQuery.isLoading ? (
-          <div className="col-span-full text-center py-8">Carregando contas...</div>
-        ) : accounts.length > 0 ? (
-          accounts.map((account) => (
-            <Card key={account.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-lg">{account.name}</CardTitle>
-                      <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                        ID: {account.id}
-                      </span>
-                    </div>
-                    <CardDescription>{ACCOUNT_TYPES[account.type] || account.type}</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">Saldo</p>
-                  <p className={`text-2xl font-bold ${parseFloat(account.balance as string) < 0 ? "text-red-600" : ""}`}>
-                    {account.currency} {parseFloat(account.balance as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
-                {account.bankName && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Banco</p>
-                    <p className="text-sm font-medium">{account.bankName}</p>
-                  </div>
-                )}
-                {account.type === "credit_card" && account.creditLimit && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Limite</p>
-                    <p className="text-sm font-medium">
-                      {account.currency} {parseFloat(account.creditLimit as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                )}
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => openEditDialog(account)}
-                  >
-                    <Edit2 className="h-4 w-4 mr-1" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => openDeleteDialog(account)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Excluir
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <Card className="col-span-full">
-            <CardContent className="text-center py-12">
-              <Wallet className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <p className="text-muted-foreground mb-4">Nenhuma conta registrada</p>
-              <Button onClick={() => setOpen(true)} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Criar Primeira Conta
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Table View for Desktop */}
-      {accounts.length > 0 && (
-        <Card className="hidden lg:block">
-          <CardHeader>
-            <CardTitle>Visão em Tabela</CardTitle>
-            <CardDescription>Todas as contas com IDs para uso na API</CardDescription>
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Saldo Total
+            </CardTitle>
           </CardHeader>
           <CardContent>
+            <p className={`text-2xl font-bold ${totalBalance < 0 ? "text-red-600" : "text-green-600"}`}>
+              R$ {totalBalance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Wallet className="h-4 w-4" />
+              Contas Correntes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{checkingCount}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <PiggyBank className="h-4 w-4" />
+              Investimentos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{investmentCount}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Cartões de Crédito
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{creditCardCount}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filtros
+            </CardTitle>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 gap-1">
+                <X className="h-3 w-3" />
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs">Tipo de Conta</Label>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="checking">Conta Corrente</SelectItem>
+                  <SelectItem value="savings">Poupança</SelectItem>
+                  <SelectItem value="investment">Investimento</SelectItem>
+                  <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
+                  <SelectItem value="other">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs">Buscar</Label>
+              <div className="relative mt-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Nome da conta ou banco..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+          </div>
+
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t">
+              <span className="text-xs text-muted-foreground">Filtros ativos:</span>
+              {filterType !== "all" && (
+                <Badge variant="secondary" className="gap-1">
+                  {ACCOUNT_TYPES[filterType]}
+                  <button onClick={() => setFilterType("all")} className="ml-1 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+              {searchTerm && (
+                <Badge variant="secondary" className="gap-1">
+                  "{searchTerm}"
+                  <button onClick={() => setSearchTerm("")} className="ml-1 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Accounts Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Contas</CardTitle>
+          <CardDescription>
+            {filteredAccounts.length} {filteredAccounts.length === 1 ? "conta encontrada" : "contas encontradas"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {accountsQuery.isLoading ? (
+            <div className="text-center py-8">Carregando contas...</div>
+          ) : filteredAccounts.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b">
                   <tr>
-                    <th className="text-left py-2 px-4">ID</th>
-                    <th className="text-left py-2 px-4">Nome</th>
-                    <th className="text-left py-2 px-4">Tipo</th>
-                    <th className="text-left py-2 px-4">Banco</th>
-                    <th className="text-left py-2 px-4">Moeda</th>
-                    <th className="text-right py-2 px-4">Saldo</th>
-                    <th className="text-center py-2 px-4">Ações</th>
+                    <th className="text-left py-3 px-4">ID</th>
+                    <th className="text-left py-3 px-4">Nome</th>
+                    <th className="text-left py-3 px-4">Tipo</th>
+                    <th className="text-left py-3 px-4">Banco</th>
+                    <th className="text-left py-3 px-4">Moeda</th>
+                    <th className="text-right py-3 px-4">Saldo</th>
+                    <th className="text-right py-3 px-4">Limite</th>
+                    <th className="text-center py-3 px-4">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {accounts.map((account) => (
+                  {filteredAccounts.map((account) => (
                     <tr key={account.id} className="border-b hover:bg-muted/50">
-                      <td className="py-3 px-4 font-mono text-xs bg-muted/30">{account.id}</td>
+                      <td className="py-3 px-4 font-mono text-xs">{account.id}</td>
                       <td className="py-3 px-4 font-medium">{account.name}</td>
-                      <td className="py-3 px-4">{ACCOUNT_TYPES[account.type] || account.type}</td>
+                      <td className="py-3 px-4">
+                        <Badge variant="outline">{ACCOUNT_TYPES[account.type] || account.type}</Badge>
+                      </td>
                       <td className="py-3 px-4 text-muted-foreground">{account.bankName || "-"}</td>
                       <td className="py-3 px-4">{account.currency}</td>
-                      <td className={`py-3 px-4 text-right font-medium ${parseFloat(account.balance as string) < 0 ? "text-red-600" : ""}`}>
+                      <td className={`py-3 px-4 text-right font-medium ${parseFloat(account.balance as string) < 0 ? "text-red-600" : "text-green-600"}`}>
                         {parseFloat(account.balance as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex justify-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditDialog(account)}
-                          >
+                      <td className="py-3 px-4 text-right text-muted-foreground">
+                        {account.type === "credit_card" && account.creditLimit
+                          ? parseFloat(account.creditLimit as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })
+                          : "-"}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex justify-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openEditDialog(account)}>
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <Button
@@ -400,40 +481,22 @@ export default function Accounts() {
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Summary */}
-      {accounts.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Resumo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Contas</p>
-                <p className="text-2xl font-bold">{accounts.length}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Saldo Total</p>
-                <p className="text-2xl font-bold">
-                  R$ {accounts.reduce((sum, acc) => sum + parseFloat(acc.balance as string), 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Contas Correntes</p>
-                <p className="text-2xl font-bold">{accounts.filter((a) => a.type === "checking").length}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Investimentos</p>
-                <p className="text-2xl font-bold">{accounts.filter((a) => a.type === "investment").length}</p>
-              </div>
+          ) : (
+            <div className="text-center py-12">
+              <Wallet className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <p className="text-muted-foreground mb-4">
+                {hasActiveFilters ? "Nenhuma conta encontrada com os filtros aplicados" : "Nenhuma conta registrada"}
+              </p>
+              {!hasActiveFilters && (
+                <Button onClick={() => setOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Criar Primeira Conta
+                </Button>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
