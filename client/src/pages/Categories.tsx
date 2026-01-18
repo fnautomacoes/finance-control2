@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Edit2, Tag } from "lucide-react";
+import { Plus, Trash2, Edit2, Tag, ChevronRight, FolderTree } from "lucide-react";
 import { toast } from "sonner";
 
 const COLORS = [
@@ -24,19 +25,35 @@ interface CategoryFormData {
   description: string;
   color: string;
   type: "income" | "expense";
+  parentId: number | null;
+}
+
+interface Category {
+  id: number;
+  userId: number;
+  parentId: number | null;
+  name: string;
+  description: string | null;
+  type: "income" | "expense";
+  color: string | null;
+  icon: string | null;
+  isActive: boolean | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export default function Categories() {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<any>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
   const [formData, setFormData] = useState<CategoryFormData>({
     name: "",
     description: "",
     color: COLORS[0].value,
     type: "expense",
+    parentId: null,
   });
 
   // Queries
@@ -45,23 +62,81 @@ export default function Categories() {
   const updateCategoryMutation = trpc.categories.update.useMutation();
   const deleteCategoryMutation = trpc.categories.delete.useMutation();
 
+  const categories = (categoriesQuery.data || []) as Category[];
+
+  // Get parent categories (categories without parent) filtered by type
+  const getParentOptions = (type: "income" | "expense", excludeId?: number) => {
+    return categories.filter(
+      (c) => c.type === type && c.parentId === null && c.id !== excludeId
+    );
+  };
+
+  // Get parent category name
+  const getParentName = (parentId: number | null) => {
+    if (!parentId) return null;
+    const parent = categories.find((c) => c.id === parentId);
+    return parent?.name || null;
+  };
+
+  // Organize categories in hierarchy
+  const organizedCategories = useMemo(() => {
+    const parentCategories = categories.filter((c) => !c.parentId);
+    const childCategories = categories.filter((c) => c.parentId);
+
+    // Create a map of parent -> children
+    const childrenMap = new Map<number, Category[]>();
+    childCategories.forEach((child) => {
+      if (child.parentId) {
+        const existing = childrenMap.get(child.parentId) || [];
+        existing.push(child);
+        childrenMap.set(child.parentId, existing);
+      }
+    });
+
+    // Build flat list with proper ordering
+    const result: (Category & { isChild: boolean; hasChildren: boolean })[] = [];
+    parentCategories.forEach((parent) => {
+      const children = childrenMap.get(parent.id) || [];
+      result.push({ ...parent, isChild: false, hasChildren: children.length > 0 });
+      children.forEach((child) => {
+        result.push({ ...child, isChild: true, hasChildren: false });
+      });
+    });
+
+    // Add any orphaned children (shouldn't happen normally)
+    childCategories.forEach((child) => {
+      if (!result.find((c) => c.id === child.id)) {
+        result.push({ ...child, isChild: true, hasChildren: false });
+      }
+    });
+
+    return result;
+  }, [categories]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      await createCategoryMutation.mutateAsync(formData);
+      await createCategoryMutation.mutateAsync({
+        name: formData.name,
+        type: formData.type,
+        description: formData.description || undefined,
+        color: formData.color,
+        parentId: formData.parentId,
+      });
       toast.success("Categoria criada com sucesso!");
       setFormData({
         name: "",
         description: "",
         color: COLORS[0].value,
         type: "expense",
+        parentId: null,
       });
       setSelectedColor(COLORS[0].value);
       setOpen(false);
       categoriesQuery.refetch();
-    } catch (error) {
-      toast.error("Erro ao criar categoria");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao criar categoria");
       console.error(error);
     }
   };
@@ -74,16 +149,17 @@ export default function Categories() {
       await updateCategoryMutation.mutateAsync({
         id: selectedCategory.id,
         name: formData.name,
-        description: formData.description,
+        description: formData.description || undefined,
         color: formData.color,
         type: formData.type,
+        parentId: formData.parentId,
       });
       toast.success("Categoria atualizada com sucesso!");
       setEditOpen(false);
       setSelectedCategory(null);
       categoriesQuery.refetch();
-    } catch (error) {
-      toast.error("Erro ao atualizar categoria");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar categoria");
       console.error(error);
     }
   };
@@ -97,25 +173,26 @@ export default function Categories() {
       setDeleteOpen(false);
       setSelectedCategory(null);
       categoriesQuery.refetch();
-    } catch (error) {
-      toast.error("Erro ao excluir categoria");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao excluir categoria");
       console.error(error);
     }
   };
 
-  const openEditDialog = (category: any) => {
+  const openEditDialog = (category: Category) => {
     setSelectedCategory(category);
     setFormData({
       name: category.name,
       description: category.description || "",
       color: category.color || COLORS[0].value,
       type: category.type,
+      parentId: category.parentId,
     });
     setSelectedColor(category.color || COLORS[0].value);
     setEditOpen(true);
   };
 
-  const openDeleteDialog = (category: any) => {
+  const openDeleteDialog = (category: Category) => {
     setSelectedCategory(category);
     setDeleteOpen(true);
   };
@@ -128,7 +205,17 @@ export default function Categories() {
     }));
   };
 
-  const categories = categoriesQuery.data || [];
+  const handleTypeChange = (type: "income" | "expense") => {
+    setFormData((prev) => ({
+      ...prev,
+      type,
+      parentId: null, // Reset parent when type changes
+    }));
+  };
+
+  // Count stats
+  const parentCount = categories.filter((c) => !c.parentId).length;
+  const childCount = categories.filter((c) => c.parentId).length;
 
   return (
     <div className="space-y-6">
@@ -181,7 +268,7 @@ export default function Categories() {
                   <Button
                     type="button"
                     variant={formData.type === "expense" ? "default" : "outline"}
-                    onClick={() => setFormData((prev) => ({ ...prev, type: "expense" }))}
+                    onClick={() => handleTypeChange("expense")}
                     className="flex-1"
                   >
                     Despesa
@@ -189,12 +276,40 @@ export default function Categories() {
                   <Button
                     type="button"
                     variant={formData.type === "income" ? "default" : "outline"}
-                    onClick={() => setFormData((prev) => ({ ...prev, type: "income" }))}
+                    onClick={() => handleTypeChange("income")}
                     className="flex-1"
                   >
                     Receita
                   </Button>
                 </div>
+              </div>
+
+              <div>
+                <Label>Categoria Pai</Label>
+                <Select
+                  value={formData.parentId?.toString() || "none"}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      parentId: value === "none" ? null : parseInt(value),
+                    }))
+                  }
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Nenhuma (categoria principal)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma (categoria principal)</SelectItem>
+                    {getParentOptions(formData.type).map((category) => (
+                      <SelectItem key={category.id} value={category.id.toString()}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selecione uma categoria pai para criar uma subcategoria
+                </p>
               </div>
 
               <div>
@@ -232,7 +347,7 @@ export default function Categories() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -242,6 +357,18 @@ export default function Categories() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{categories.length}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <FolderTree className="h-4 w-4" />
+              Categorias Principais
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{parentCount}</p>
           </CardContent>
         </Card>
 
@@ -270,17 +397,31 @@ export default function Categories() {
           <div className="text-center py-8">Carregando categorias...</div>
         ) : categories.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {categories.map((category) => (
-              <Card key={category.id} className="hover:shadow-lg transition-shadow">
+            {organizedCategories.map((category) => (
+              <Card
+                key={category.id}
+                className={`hover:shadow-lg transition-shadow ${
+                  category.isChild ? "ml-6 border-l-4" : ""
+                }`}
+                style={category.isChild ? { borderLeftColor: category.color || "#3b82f6" } : undefined}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3 flex-1">
+                      {category.isChild && (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      )}
                       <div
                         className="w-10 h-10 rounded-lg flex-shrink-0"
                         style={{ backgroundColor: category.color || "#3b82f6" }}
                       />
                       <div className="flex-1 min-w-0">
                         <CardTitle className="text-base truncate">{category.name}</CardTitle>
+                        {category.parentId && (
+                          <p className="text-xs text-muted-foreground">
+                            Subcategoria de: {getParentName(category.parentId)}
+                          </p>
+                        )}
                         {category.description && (
                           <CardDescription className="text-xs truncate">
                             {category.description}
@@ -295,13 +436,20 @@ export default function Categories() {
                 </CardHeader>
                 <CardContent className="pb-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      category.type === "income"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}>
-                      {category.type === "income" ? "Receita" : "Despesa"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        category.type === "income"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}>
+                        {category.type === "income" ? "Receita" : "Despesa"}
+                      </span>
+                      {category.hasChildren && (
+                        <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700">
+                          Pai
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -356,6 +504,7 @@ export default function Categories() {
                     <th className="text-left py-2 px-4">ID</th>
                     <th className="text-left py-2 px-4">Cor</th>
                     <th className="text-left py-2 px-4">Nome</th>
+                    <th className="text-left py-2 px-4">Categoria Pai</th>
                     <th className="text-left py-2 px-4">Tipo</th>
                     <th className="text-left py-2 px-4">Descrição</th>
                     <th className="text-left py-2 px-4">Criada em</th>
@@ -363,8 +512,11 @@ export default function Categories() {
                   </tr>
                 </thead>
                 <tbody>
-                  {categories.map((category) => (
-                    <tr key={category.id} className="border-b hover:bg-muted/50">
+                  {organizedCategories.map((category) => (
+                    <tr
+                      key={category.id}
+                      className={`border-b hover:bg-muted/50 ${category.isChild ? "bg-muted/20" : ""}`}
+                    >
                       <td className="py-3 px-4 font-mono text-xs bg-muted/30">{category.id}</td>
                       <td className="py-3 px-4">
                         <div
@@ -372,7 +524,17 @@ export default function Categories() {
                           style={{ backgroundColor: category.color || "#3b82f6" }}
                         />
                       </td>
-                      <td className="py-3 px-4 font-medium">{category.name}</td>
+                      <td className="py-3 px-4 font-medium">
+                        <div className="flex items-center gap-2">
+                          {category.isChild && (
+                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                          )}
+                          {category.name}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground">
+                        {getParentName(category.parentId) || "-"}
+                      </td>
                       <td className="py-3 px-4">
                         <span className={`text-xs px-2 py-1 rounded ${
                           category.type === "income"
@@ -454,7 +616,7 @@ export default function Categories() {
                 <Button
                   type="button"
                   variant={formData.type === "expense" ? "default" : "outline"}
-                  onClick={() => setFormData((prev) => ({ ...prev, type: "expense" }))}
+                  onClick={() => handleTypeChange("expense")}
                   className="flex-1"
                 >
                   Despesa
@@ -462,12 +624,40 @@ export default function Categories() {
                 <Button
                   type="button"
                   variant={formData.type === "income" ? "default" : "outline"}
-                  onClick={() => setFormData((prev) => ({ ...prev, type: "income" }))}
+                  onClick={() => handleTypeChange("income")}
                   className="flex-1"
                 >
                   Receita
                 </Button>
               </div>
+            </div>
+
+            <div>
+              <Label>Categoria Pai</Label>
+              <Select
+                value={formData.parentId?.toString() || "none"}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    parentId: value === "none" ? null : parseInt(value),
+                  }))
+                }
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Nenhuma (categoria principal)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma (categoria principal)</SelectItem>
+                  {getParentOptions(formData.type, selectedCategory?.id).map((category) => (
+                    <SelectItem key={category.id} value={category.id.toString()}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Selecione uma categoria pai para transformar em subcategoria
+              </p>
             </div>
 
             <div>
@@ -515,6 +705,11 @@ export default function Categories() {
             <DialogTitle>Excluir Categoria</DialogTitle>
             <DialogDescription>
               Tem certeza que deseja excluir a categoria "{selectedCategory?.name}"? Esta ação não pode ser desfeita.
+              {categories.some((c) => c.parentId === selectedCategory?.id) && (
+                <span className="block mt-2 text-yellow-600">
+                  Atenção: Esta categoria possui subcategorias. Remova-as primeiro.
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
