@@ -7,6 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { CategorySelector } from "@/components/CategorySelector";
 import { toast } from "sonner";
 import {
   Upload,
@@ -222,21 +224,19 @@ export default function ImportOFX() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Importar OFX</h1>
-          <p className="text-muted-foreground">
-            Importe extratos bancários no formato OFX
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold">Importar OFX</h1>
+        <p className="text-sm text-muted-foreground">
+          Importe extratos bancários no formato OFX
+        </p>
       </div>
 
       {/* Progress Steps */}
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex items-center justify-center gap-1 sm:gap-2 overflow-x-auto pb-2">
         {["upload", "account", "preview", "complete"].map((s, i) => (
-          <div key={s} className="flex items-center">
+          <div key={s} className="flex items-center flex-shrink-0">
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${
                 step === s || (step === "importing" && s === "preview")
                   ? "bg-primary text-primary-foreground"
                   : ["upload", "account", "preview", "complete"].indexOf(step) >
@@ -246,14 +246,14 @@ export default function ImportOFX() {
               }`}
             >
               {["upload", "account", "preview", "complete"].indexOf(step) > i ? (
-                <CheckCircle2 className="h-4 w-4" />
+                <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4" />
               ) : (
                 i + 1
               )}
             </div>
             {i < 3 && (
               <div
-                className={`w-16 h-1 mx-2 ${
+                className={`w-8 sm:w-16 h-1 mx-1 sm:mx-2 ${
                   ["upload", "account", "preview", "complete"].indexOf(step) > i
                     ? "bg-green-500"
                     : "bg-muted"
@@ -435,10 +435,72 @@ export default function ImportOFX() {
             </CardContent>
           </Card>
 
-          {/* Transactions Table */}
-          <Card>
+          {/* Transactions - Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {transactions.map((tx) => (
+              <Card
+                key={tx.fitId}
+                className={`${
+                  tx.isDuplicate
+                    ? "bg-yellow-50 dark:bg-yellow-950/20 opacity-60"
+                    : tx.selected
+                    ? "bg-blue-50 dark:bg-blue-950/20"
+                    : ""
+                }`}
+              >
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={tx.selected}
+                        disabled={tx.isDuplicate}
+                        onCheckedChange={() => handleToggleTransaction(tx.fitId)}
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm line-clamp-2">{tx.description}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(tx.date)}</p>
+                      </div>
+                    </div>
+                    {tx.isDuplicate ? (
+                      <Badge variant="outline" className="text-yellow-600 flex-shrink-0">
+                        <Ban className="h-3 w-3 mr-1" />
+                        Dup
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-green-600 flex-shrink-0">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Nova
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`font-medium ${
+                        tx.type === "income" ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {tx.type === "income" ? "+" : "-"}
+                      {formatCurrency(tx.amount)}
+                    </span>
+                  </div>
+                  <CategorySelector
+                    categories={categories}
+                    value={tx.categoryId}
+                    onChange={(categoryId) => handleCategoryChange(tx.fitId, categoryId)}
+                    filterType={tx.type}
+                    placeholder="Sem categoria"
+                    disabled={tx.isDuplicate}
+                    triggerClassName="w-full h-9 text-sm"
+                  />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Transactions - Desktop Table View */}
+          <Card className="hidden md:block">
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <ScrollArea className="w-full">
                 <table className="w-full text-sm">
                   <thead className="bg-muted">
                     <tr>
@@ -476,33 +538,15 @@ export default function ImportOFX() {
                           {tx.description}
                         </td>
                         <td className="py-3 px-4">
-                          <Select
-                            value={tx.categoryId?.toString() || "none"}
-                            onValueChange={(value) =>
-                              handleCategoryChange(
-                                tx.fitId,
-                                value === "none" ? undefined : parseInt(value)
-                              )
-                            }
+                          <CategorySelector
+                            categories={categories}
+                            value={tx.categoryId}
+                            onChange={(categoryId) => handleCategoryChange(tx.fitId, categoryId)}
+                            filterType={tx.type}
+                            placeholder="Sem categoria"
                             disabled={tx.isDuplicate}
-                          >
-                            <SelectTrigger className="w-40 h-8">
-                              <SelectValue placeholder="Sem categoria" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Sem categoria</SelectItem>
-                              {categories
-                                .filter((c) => c.type === tx.type)
-                                .map((category) => (
-                                  <SelectItem
-                                    key={category.id}
-                                    value={category.id.toString()}
-                                  >
-                                    {category.name}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
+                            triggerClassName="w-44 h-8 text-xs"
+                          />
                         </td>
                         <td
                           className={`py-3 px-4 text-right whitespace-nowrap font-medium ${
@@ -529,19 +573,21 @@ export default function ImportOFX() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
             </CardContent>
           </Card>
 
           {/* Actions */}
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setStep("account")}>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setStep("account")} className="order-2 sm:order-1">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>
             <Button
               onClick={handleImport}
               disabled={selectedCount === 0 || importMutation.isPending}
+              className="order-1 sm:order-2"
             >
               <Download className="h-4 w-4 mr-2" />
               Importar {selectedCount} transações

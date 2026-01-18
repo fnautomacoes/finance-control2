@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Plus, Trash2, Edit2, Wallet, Search, X, Filter, DollarSign, CreditCard, PiggyBank } from "lucide-react";
 import { toast } from "sonner";
 
@@ -180,10 +181,10 @@ export default function Accounts() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Contas Bancárias</h1>
-          <p className="text-muted-foreground">Gerencie suas contas e saldos</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Contas Bancárias</h1>
+          <p className="text-sm text-muted-foreground">Gerencie suas contas e saldos</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -429,58 +430,106 @@ export default function Accounts() {
           {accountsQuery.isLoading ? (
             <div className="text-center py-8">Carregando contas...</div>
           ) : filteredAccounts.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b">
-                  <tr>
-                    <th className="text-left py-3 px-4">ID</th>
-                    <th className="text-left py-3 px-4">Nome</th>
-                    <th className="text-left py-3 px-4">Tipo</th>
-                    <th className="text-left py-3 px-4">Banco</th>
-                    <th className="text-left py-3 px-4">Moeda</th>
-                    <th className="text-right py-3 px-4">Saldo</th>
-                    <th className="text-right py-3 px-4">Limite</th>
-                    <th className="text-center py-3 px-4">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAccounts.map((account) => (
-                    <tr key={account.id} className="border-b hover:bg-muted/50">
-                      <td className="py-3 px-4 font-mono text-xs">{account.id}</td>
-                      <td className="py-3 px-4 font-medium">{account.name}</td>
-                      <td className="py-3 px-4">
-                        <Badge variant="outline">{ACCOUNT_TYPES[account.type] || account.type}</Badge>
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground">{account.bankName || "-"}</td>
-                      <td className="py-3 px-4">{account.currency}</td>
-                      <td className={`py-3 px-4 text-right font-medium ${parseFloat(account.balance as string) < 0 ? "text-red-600" : "text-green-600"}`}>
-                        {parseFloat(account.balance as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-4 text-right text-muted-foreground">
-                        {account.type === "credit_card" && account.creditLimit
-                          ? parseFloat(account.creditLimit as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })
-                          : "-"}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex justify-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEditDialog(account)}>
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => openDeleteDialog(account)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {filteredAccounts.map((account) => (
+                  <div key={account.id} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{account.name}</span>
+                        {account.bankName && (
+                          <p className="text-xs text-muted-foreground">{account.bankName}</p>
+                        )}
+                      </div>
+                      <Badge variant="outline">{ACCOUNT_TYPES[account.type] || account.type}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Saldo</span>
+                      <span className={`font-medium ${parseFloat(account.balance as string) < 0 ? "text-red-600" : "text-green-600"}`}>
+                        {account.currency} {parseFloat(account.balance as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    {account.type === "credit_card" && account.creditLimit && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Limite</span>
+                        <span className="text-sm">
+                          {parseFloat(account.creditLimit as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-end gap-1 pt-2 border-t">
+                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(account)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => openDeleteDialog(account)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <ScrollArea className="hidden md:block w-full">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/50">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-medium">ID</th>
+                      <th className="text-left py-3 px-4 font-medium">Nome</th>
+                      <th className="text-left py-3 px-4 font-medium">Tipo</th>
+                      <th className="text-left py-3 px-4 font-medium">Banco</th>
+                      <th className="text-left py-3 px-4 font-medium">Moeda</th>
+                      <th className="text-right py-3 px-4 font-medium">Saldo</th>
+                      <th className="text-right py-3 px-4 font-medium">Limite</th>
+                      <th className="text-center py-3 px-4 font-medium">Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredAccounts.map((account) => (
+                      <tr key={account.id} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-4 font-mono text-xs">{account.id}</td>
+                        <td className="py-3 px-4 font-medium">{account.name}</td>
+                        <td className="py-3 px-4">
+                          <Badge variant="outline">{ACCOUNT_TYPES[account.type] || account.type}</Badge>
+                        </td>
+                        <td className="py-3 px-4 text-muted-foreground">{account.bankName || "-"}</td>
+                        <td className="py-3 px-4">{account.currency}</td>
+                        <td className={`py-3 px-4 text-right font-medium ${parseFloat(account.balance as string) < 0 ? "text-red-600" : "text-green-600"}`}>
+                          {parseFloat(account.balance as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 text-right text-muted-foreground">
+                          {account.type === "credit_card" && account.creditLimit
+                            ? parseFloat(account.creditLimit as string).toLocaleString("pt-BR", { minimumFractionDigits: 2 })
+                            : "-"}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex justify-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => openEditDialog(account)}>
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => openDeleteDialog(account)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </>
           ) : (
             <div className="text-center py-12">
               <Wallet className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />

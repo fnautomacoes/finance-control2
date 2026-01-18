@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { ColorPicker } from "@/components/ColorPicker";
 import { Plus, Trash2, Edit2, Tag, ChevronRight, FolderTree, Search, X, Filter } from "lucide-react";
 import { toast } from "sonner";
@@ -239,10 +240,10 @@ export default function Categories() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Categorias</h1>
-          <p className="text-muted-foreground">Organize suas receitas e despesas por categorias</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Categorias</h1>
+          <p className="text-sm text-muted-foreground">Organize suas receitas e despesas por categorias</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -499,89 +500,162 @@ export default function Categories() {
           {categoriesQuery.isLoading ? (
             <div className="text-center py-8">Carregando categorias...</div>
           ) : organizedCategories.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b">
-                  <tr>
-                    <th className="text-left py-3 px-4">ID</th>
-                    <th className="text-left py-3 px-4">Cor</th>
-                    <th className="text-left py-3 px-4">Nome</th>
-                    <th className="text-left py-3 px-4">Categoria Pai</th>
-                    <th className="text-left py-3 px-4">Tipo</th>
-                    <th className="text-left py-3 px-4">Descrição</th>
-                    <th className="text-left py-3 px-4">Criada em</th>
-                    <th className="text-center py-3 px-4">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {organizedCategories.map((category) => (
-                    <tr
-                      key={category.id}
-                      className={`border-b hover:bg-muted/50 ${category.isChild ? "bg-muted/20" : ""}`}
-                    >
-                      <td className="py-3 px-4 font-mono text-xs">{category.id}</td>
-                      <td className="py-3 px-4">
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {organizedCategories.map((category) => (
+                  <div
+                    key={category.id}
+                    className={`border rounded-lg p-4 space-y-3 ${category.isChild ? "bg-muted/20 ml-4" : ""}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
                         <div
-                          className="w-6 h-6 rounded border"
+                          className="w-5 h-5 rounded border flex-shrink-0"
                           style={{ backgroundColor: category.color || "#3b82f6" }}
-                          title={category.color || "#3b82f6"}
                         />
-                      </td>
-                      <td className="py-3 px-4 font-medium">
-                        <div className="flex items-center gap-2">
+                        <span className="font-medium">
                           {category.isChild && (
-                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                            <ChevronRight className="h-3 w-3 inline text-muted-foreground mr-1" />
                           )}
                           {category.name}
-                          {category.hasChildren && (
-                            <Badge variant="outline" className="text-xs">Pai</Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground">
-                        {getParentName(category.parentId) || "-"}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            category.type === "income"
-                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                          }`}
-                        >
-                          {category.type === "income" ? "Receita" : "Despesa"}
                         </span>
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground max-w-xs truncate">
-                        {category.description || "-"}
-                      </td>
-                      <td className="py-3 px-4 text-sm">
+                        {category.hasChildren && (
+                          <Badge variant="outline" className="text-xs">Pai</Badge>
+                        )}
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-1 rounded ${
+                          category.type === "income"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        }`}
+                      >
+                        {category.type === "income" ? "Receita" : "Despesa"}
+                      </span>
+                    </div>
+                    {category.parentId && (
+                      <div className="text-xs text-muted-foreground">
+                        Pai: {getParentName(category.parentId)}
+                      </div>
+                    )}
+                    {category.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {category.description}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <span className="text-xs text-muted-foreground">
                         {new Date(category.createdAt).toLocaleDateString("pt-BR")}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex justify-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditDialog(category)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => openDeleteDialog(category)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
+                      </span>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditDialog(category)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => openDeleteDialog(category)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <ScrollArea className="hidden md:block w-full">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/50">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-medium">ID</th>
+                      <th className="text-left py-3 px-4 font-medium">Cor</th>
+                      <th className="text-left py-3 px-4 font-medium">Nome</th>
+                      <th className="text-left py-3 px-4 font-medium">Categoria Pai</th>
+                      <th className="text-left py-3 px-4 font-medium">Tipo</th>
+                      <th className="text-left py-3 px-4 font-medium">Descrição</th>
+                      <th className="text-left py-3 px-4 font-medium">Criada em</th>
+                      <th className="text-center py-3 px-4 font-medium">Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {organizedCategories.map((category) => (
+                      <tr
+                        key={category.id}
+                        className={`border-b hover:bg-muted/50 ${category.isChild ? "bg-muted/20" : ""}`}
+                      >
+                        <td className="py-3 px-4 font-mono text-xs">{category.id}</td>
+                        <td className="py-3 px-4">
+                          <div
+                            className="w-6 h-6 rounded border"
+                            style={{ backgroundColor: category.color || "#3b82f6" }}
+                            title={category.color || "#3b82f6"}
+                          />
+                        </td>
+                        <td className="py-3 px-4 font-medium">
+                          <div className="flex items-center gap-2">
+                            {category.isChild && (
+                              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                            )}
+                            {category.name}
+                            {category.hasChildren && (
+                              <Badge variant="outline" className="text-xs">Pai</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-muted-foreground">
+                          {getParentName(category.parentId) || "-"}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`text-xs px-2 py-1 rounded ${
+                              category.type === "income"
+                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            }`}
+                          >
+                            {category.type === "income" ? "Receita" : "Despesa"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-muted-foreground max-w-xs truncate">
+                          {category.description || "-"}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {new Date(category.createdAt).toLocaleDateString("pt-BR")}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditDialog(category)}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => openDeleteDialog(category)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </>
           ) : (
             <div className="text-center py-12">
               <Tag className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
