@@ -160,17 +160,30 @@ export const appRouter = router({
           type: z.enum(["income", "expense"]),
           description: z.string().optional(),
           color: z.string().default("#3b82f6"),
+          parentId: z.number().nullable().optional(),
         })
       )
-      .mutation(({ ctx, input }) =>
-        createCategory({
+      .mutation(async ({ ctx, input }) => {
+        // Validate parent category if provided
+        if (input.parentId) {
+          const categories = await getUserCategories(ctx.user.id);
+          const parent = categories.find(c => c.id === input.parentId);
+          if (!parent) {
+            throw new Error("Categoria pai não encontrada");
+          }
+          if (parent.type !== input.type) {
+            throw new Error("A categoria pai deve ser do mesmo tipo (receita/despesa)");
+          }
+        }
+        return createCategory({
           userId: ctx.user.id,
           name: input.name,
           type: input.type,
           description: input.description,
           color: input.color,
-        })
-      ),
+          parentId: input.parentId,
+        });
+      }),
     update: protectedProcedure
       .input(
         z.object({
@@ -179,21 +192,52 @@ export const appRouter = router({
           type: z.enum(["income", "expense"]).optional(),
           description: z.string().optional(),
           color: z.string().optional(),
+          parentId: z.number().nullable().optional(),
         })
       )
-      .mutation(({ ctx, input }) =>
-        updateCategory(input.id, ctx.user.id, {
+      .mutation(async ({ ctx, input }) => {
+        // Validate parent category if provided
+        if (input.parentId !== undefined) {
+          if (input.parentId === input.id) {
+            throw new Error("Uma categoria não pode ser pai de si mesma");
+          }
+          if (input.parentId !== null) {
+            const categories = await getUserCategories(ctx.user.id);
+            const parent = categories.find(c => c.id === input.parentId);
+            if (!parent) {
+              throw new Error("Categoria pai não encontrada");
+            }
+            // Check for circular reference
+            const isChildOf = (categoryId: number, potentialParentId: number): boolean => {
+              const cat = categories.find(c => c.id === categoryId);
+              if (!cat || !cat.parentId) return false;
+              if (cat.parentId === potentialParentId) return true;
+              return isChildOf(cat.parentId, potentialParentId);
+            };
+            if (isChildOf(input.parentId, input.id)) {
+              throw new Error("Referência circular detectada: a categoria pai é filha desta categoria");
+            }
+          }
+        }
+        return updateCategory(input.id, ctx.user.id, {
           name: input.name,
           type: input.type,
           description: input.description,
           color: input.color,
-        })
-      ),
+          parentId: input.parentId,
+        });
+      }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(({ ctx, input }) =>
-        deleteCategory(input.id, ctx.user.id)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        // Check if category has children
+        const categories = await getUserCategories(ctx.user.id);
+        const hasChildren = categories.some(c => c.parentId === input.id);
+        if (hasChildren) {
+          throw new Error("Não é possível excluir uma categoria que possui subcategorias");
+        }
+        return deleteCategory(input.id, ctx.user.id);
+      }),
   }),
 
   // Transações

@@ -70,10 +70,12 @@ export type InsertUser = typeof users.$inferInsert;
 
 /**
  * Categorias de transações (Alimentação, Moradia, Lazer, Salário, etc)
+ * Suporta hierarquia pai/filho através do campo parentId
  */
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
+  parentId: integer("parentId"), // Self-reference for parent category
   name: varchar("name", { length: 100 }).notNull(),
   description: text("description"),
   type: categoryTypeEnum("type").notNull(),
