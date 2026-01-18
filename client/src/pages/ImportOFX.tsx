@@ -80,6 +80,9 @@ export default function ImportOFX() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Utils for cache invalidation
+  const utils = trpc.useUtils();
+
   // Queries
   const accountsQuery = trpc.accounts.list.useQuery();
   const categoriesQuery = trpc.categories.list.useQuery();
@@ -197,6 +200,14 @@ export default function ImportOFX() {
       setImportProgress(100);
       setImportResult(result);
       setStep("complete");
+
+      // Invalidate cache to refresh transactions and accounts lists
+      console.log("🔄 [OFX Import] Invalidando cache...");
+      await utils.transactions.list.invalidate();
+      await utils.accounts.list.invalidate();
+      await utils.dashboard.summary.invalidate();
+      console.log("✅ [OFX Import] Cache invalidado");
+
       toast.success(`${result.imported} transações importadas com sucesso!`);
     } catch (error: any) {
       toast.error(error.message || "Erro ao importar transações");
