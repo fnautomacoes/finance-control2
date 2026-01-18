@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export default function Transactions() {
   const [selectedAccount, setSelectedAccount] = useState<number>(1);
   const [filterStatus, setFilterStatus] = useState<TransactionStatus | "all">("all");
   const [formData, setFormData] = useState({
-    accountId: 1,
+    accountId: 0,
     description: "",
     amount: "",
     type: "expense" as "income" | "expense",
@@ -58,6 +58,13 @@ export default function Transactions() {
   const updateTransactionMutation = trpc.transactions.update.useMutation();
   const deleteTransactionMutation = trpc.transactions.delete.useMutation();
 
+  // Set default account when accounts are loaded
+  useEffect(() => {
+    if (accountsQuery.data && accountsQuery.data.length > 0 && formData.accountId === 0) {
+      setFormData((prev) => ({ ...prev, accountId: accountsQuery.data[0].id }));
+    }
+  }, [accountsQuery.data, formData.accountId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -68,7 +75,7 @@ export default function Transactions() {
       });
       toast.success("Transação criada com sucesso!");
       setFormData({
-        accountId: 1,
+        accountId: accountsQuery.data?.[0]?.id || 0,
         description: "",
         amount: "",
         type: "expense",
@@ -95,7 +102,7 @@ export default function Transactions() {
   const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "categoryId" ? parseInt(value) : value,
+      [name]: name === "categoryId" || name === "accountId" ? parseInt(value) : value,
     }));
   };
 
@@ -110,7 +117,7 @@ export default function Transactions() {
   const handleEditSelectChange = (name: string, value: string) => {
     setEditFormData((prev) => ({
       ...prev,
-      [name]: name === "categoryId" ? parseInt(value) : value,
+      [name]: name === "categoryId" || name === "accountId" ? parseInt(value) : value,
     }));
   };
 
