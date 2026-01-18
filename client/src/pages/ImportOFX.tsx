@@ -477,11 +477,11 @@ export default function ImportOFX() {
                         </td>
                         <td className="py-3 px-4">
                           <Select
-                            value={tx.categoryId?.toString() || ""}
+                            value={tx.categoryId?.toString() || "none"}
                             onValueChange={(value) =>
                               handleCategoryChange(
                                 tx.fitId,
-                                value ? parseInt(value) : undefined
+                                value === "none" ? undefined : parseInt(value)
                               )
                             }
                             disabled={tx.isDuplicate}
@@ -490,7 +490,7 @@ export default function ImportOFX() {
                               <SelectValue placeholder="Sem categoria" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">Sem categoria</SelectItem>
+                              <SelectItem value="none">Sem categoria</SelectItem>
                               {categories
                                 .filter((c) => c.type === tx.type)
                                 .map((category) => (
