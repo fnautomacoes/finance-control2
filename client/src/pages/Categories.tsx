@@ -6,19 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Edit2, Tag, ChevronRight, FolderTree } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ColorPicker } from "@/components/ColorPicker";
+import { Plus, Trash2, Edit2, Tag, ChevronRight, FolderTree, Search, X, Filter } from "lucide-react";
 import { toast } from "sonner";
-
-const COLORS = [
-  { name: "Azul", value: "#3b82f6" },
-  { name: "Verde", value: "#10b981" },
-  { name: "Vermelho", value: "#ef4444" },
-  { name: "Amarelo", value: "#f59e0b" },
-  { name: "Roxo", value: "#8b5cf6" },
-  { name: "Rosa", value: "#ec4899" },
-  { name: "Laranja", value: "#f97316" },
-  { name: "Ciano", value: "#06b6d4" },
-];
 
 interface CategoryFormData {
   name: string;
@@ -47,14 +38,18 @@ export default function Categories() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
   const [formData, setFormData] = useState<CategoryFormData>({
     name: "",
     description: "",
-    color: COLORS[0].value,
+    color: "#3b82f6",
     type: "expense",
     parentId: null,
   });
+
+  // Filter states
+  const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
+  const [filterParent, setFilterParent] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Queries
   const categoriesQuery = trpc.categories.list.useQuery();
@@ -78,12 +73,39 @@ export default function Categories() {
     return parent?.name || null;
   };
 
+  // Main categories for filter dropdown
+  const mainCategories = categories.filter((c) => !c.parentId);
+
+  // Filter categories
+  const filteredCategories = useMemo(() => {
+    return categories.filter((cat) => {
+      // Filter by type
+      if (filterType !== "all" && cat.type !== filterType) return false;
+
+      // Filter by parent category
+      if (filterParent !== "all") {
+        const parentId = parseInt(filterParent);
+        if (cat.id !== parentId && cat.parentId !== parentId) return false;
+      }
+
+      // Filter by search term
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        if (!cat.name.toLowerCase().includes(search) &&
+            !(cat.description?.toLowerCase().includes(search))) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [categories, filterType, filterParent, searchTerm]);
+
   // Organize categories in hierarchy
   const organizedCategories = useMemo(() => {
-    const parentCategories = categories.filter((c) => !c.parentId);
-    const childCategories = categories.filter((c) => c.parentId);
+    const parentCategories = filteredCategories.filter((c) => !c.parentId);
+    const childCategories = filteredCategories.filter((c) => c.parentId);
 
-    // Create a map of parent -> children
     const childrenMap = new Map<number, Category[]>();
     childCategories.forEach((child) => {
       if (child.parentId) {
@@ -93,7 +115,6 @@ export default function Categories() {
       }
     });
 
-    // Build flat list with proper ordering
     const result: (Category & { isChild: boolean; hasChildren: boolean })[] = [];
     parentCategories.forEach((parent) => {
       const children = childrenMap.get(parent.id) || [];
@@ -103,7 +124,7 @@ export default function Categories() {
       });
     });
 
-    // Add any orphaned children (shouldn't happen normally)
+    // Add orphaned children
     childCategories.forEach((child) => {
       if (!result.find((c) => c.id === child.id)) {
         result.push({ ...child, isChild: true, hasChildren: false });
@@ -111,7 +132,7 @@ export default function Categories() {
     });
 
     return result;
-  }, [categories]);
+  }, [filteredCategories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,16 +149,14 @@ export default function Categories() {
       setFormData({
         name: "",
         description: "",
-        color: COLORS[0].value,
+        color: "#3b82f6",
         type: "expense",
         parentId: null,
       });
-      setSelectedColor(COLORS[0].value);
       setOpen(false);
       categoriesQuery.refetch();
     } catch (error: any) {
       toast.error(error.message || "Erro ao criar categoria");
-      console.error(error);
     }
   };
 
@@ -160,7 +179,6 @@ export default function Categories() {
       categoriesQuery.refetch();
     } catch (error: any) {
       toast.error(error.message || "Erro ao atualizar categoria");
-      console.error(error);
     }
   };
 
@@ -175,7 +193,6 @@ export default function Categories() {
       categoriesQuery.refetch();
     } catch (error: any) {
       toast.error(error.message || "Erro ao excluir categoria");
-      console.error(error);
     }
   };
 
@@ -184,11 +201,10 @@ export default function Categories() {
     setFormData({
       name: category.name,
       description: category.description || "",
-      color: category.color || COLORS[0].value,
+      color: category.color || "#3b82f6",
       type: category.type,
       parentId: category.parentId,
     });
-    setSelectedColor(category.color || COLORS[0].value);
     setEditOpen(true);
   };
 
@@ -197,25 +213,28 @@ export default function Categories() {
     setDeleteOpen(true);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleTypeChange = (type: "income" | "expense") => {
-    setFormData((prev) => ({
-      ...prev,
-      type,
-      parentId: null, // Reset parent when type changes
-    }));
+    setFormData((prev) => ({ ...prev, type, parentId: null }));
   };
 
-  // Count stats
+  const clearFilters = () => {
+    setFilterType("all");
+    setFilterParent("all");
+    setSearchTerm("");
+  };
+
+  const hasActiveFilters = filterType !== "all" || filterParent !== "all" || searchTerm !== "";
+
+  // Stats
+  const totalCategories = categories.length;
+  const incomeCategories = categories.filter((c) => c.type === "income").length;
+  const expenseCategories = categories.filter((c) => c.type === "expense").length;
   const parentCount = categories.filter((c) => !c.parentId).length;
-  const childCount = categories.filter((c) => c.parentId).length;
 
   return (
     <div className="space-y-6">
@@ -312,31 +331,11 @@ export default function Categories() {
                 </p>
               </div>
 
-              <div>
-                <Label>Cor *</Label>
-                <div className="grid grid-cols-4 gap-2 mt-2">
-                  {COLORS.map((color) => (
-                    <button
-                      key={color.value}
-                      type="button"
-                      onClick={() => {
-                        setSelectedColor(color.value);
-                        setFormData((prev) => ({
-                          ...prev,
-                          color: color.value,
-                        }));
-                      }}
-                      className={`w-full h-10 rounded-lg border-2 transition-all ${
-                        selectedColor === color.value
-                          ? "border-gray-800 scale-105"
-                          : "border-gray-200 hover:border-gray-400"
-                      }`}
-                      style={{ backgroundColor: color.value }}
-                      title={color.name}
-                    />
-                  ))}
-                </div>
-              </div>
+              <ColorPicker
+                value={formData.color}
+                onChange={(color) => setFormData((prev) => ({ ...prev, color }))}
+                label="Cor da Categoria *"
+              />
 
               <Button type="submit" className="w-full" disabled={createCategoryMutation.isPending}>
                 {createCategoryMutation.isPending ? "Criando..." : "Criar Categoria"}
@@ -347,16 +346,16 @@ export default function Categories() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Tag className="h-4 w-4" />
-              Total de Categorias
+              Total
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{categories.length}</p>
+            <p className="text-2xl font-bold">{totalCategories}</p>
           </CardContent>
         </Card>
 
@@ -364,7 +363,7 @@ export default function Categories() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <FolderTree className="h-4 w-4" />
-              Categorias Principais
+              Principais
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -374,141 +373,144 @@ export default function Categories() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Categorias de Despesa</CardTitle>
+            <CardTitle className="text-sm font-medium text-green-600">Receitas</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{categories.filter((c) => c.type === "expense").length}</p>
+            <p className="text-2xl font-bold text-green-600">{incomeCategories}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Categorias de Receita</CardTitle>
+            <CardTitle className="text-sm font-medium text-red-600">Despesas</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{categories.filter((c) => c.type === "income").length}</p>
+            <p className="text-2xl font-bold text-red-600">{expenseCategories}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Categories Grid */}
-      <div>
-        {categoriesQuery.isLoading ? (
-          <div className="text-center py-8">Carregando categorias...</div>
-        ) : categories.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {organizedCategories.map((category) => (
-              <Card
-                key={category.id}
-                className={`hover:shadow-lg transition-shadow ${
-                  category.isChild ? "ml-6 border-l-4" : ""
-                }`}
-                style={category.isChild ? { borderLeftColor: category.color || "#3b82f6" } : undefined}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      {category.isChild && (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      )}
-                      <div
-                        className="w-10 h-10 rounded-lg flex-shrink-0"
-                        style={{ backgroundColor: category.color || "#3b82f6" }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base truncate">{category.name}</CardTitle>
-                        {category.parentId && (
-                          <p className="text-xs text-muted-foreground">
-                            Subcategoria de: {getParentName(category.parentId)}
-                          </p>
-                        )}
-                        {category.description && (
-                          <CardDescription className="text-xs truncate">
-                            {category.description}
-                          </CardDescription>
-                        )}
-                      </div>
-                    </div>
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                      ID: {category.id}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent className="pb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        category.type === "income"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}>
-                        {category.type === "income" ? "Receita" : "Despesa"}
-                      </span>
-                      {category.hasChildren && (
-                        <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700">
-                          Pai
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => openEditDialog(category)}
-                    >
-                      <Edit2 className="h-4 w-4 mr-1" />
-                      Editar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => openDeleteDialog(category)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Excluir
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="text-center py-12">
-              <Tag className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <p className="text-muted-foreground mb-4">Nenhuma categoria criada</p>
-              <Button onClick={() => setOpen(true)} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Criar Primeira Categoria
+      {/* Filters */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filtros
+            </CardTitle>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 gap-1">
+                <X className="h-3 w-3" />
+                Limpar filtros
               </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label className="text-xs">Tipo</Label>
+              <Select value={filterType} onValueChange={(v: any) => setFilterType(v)}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="income">Receitas</SelectItem>
+                  <SelectItem value="expense">Despesas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-      {/* Table View for Desktop */}
-      {categories.length > 0 && (
-        <Card className="hidden lg:block">
-          <CardHeader>
-            <CardTitle>Visão em Tabela</CardTitle>
-            <CardDescription>Todas as categorias com IDs para uso na API</CardDescription>
-          </CardHeader>
-          <CardContent>
+            <div>
+              <Label className="text-xs">Categoria Principal</Label>
+              <Select value={filterParent} onValueChange={setFilterParent}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {mainCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id.toString()}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs">Buscar</Label>
+              <div className="relative mt-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Nome da categoria..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Active filters badges */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t">
+              <span className="text-xs text-muted-foreground">Filtros ativos:</span>
+              {filterType !== "all" && (
+                <Badge variant="secondary" className="gap-1">
+                  {filterType === "income" ? "Receitas" : "Despesas"}
+                  <button onClick={() => setFilterType("all")} className="ml-1 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+              {filterParent !== "all" && (
+                <Badge variant="secondary" className="gap-1">
+                  {mainCategories.find((c) => c.id === parseInt(filterParent))?.name}
+                  <button onClick={() => setFilterParent("all")} className="ml-1 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+              {searchTerm && (
+                <Badge variant="secondary" className="gap-1">
+                  "{searchTerm}"
+                  <button onClick={() => setSearchTerm("")} className="ml-1 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Categories Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Categorias</CardTitle>
+          <CardDescription>
+            {filteredCategories.length} {filteredCategories.length === 1 ? "categoria encontrada" : "categorias encontradas"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {categoriesQuery.isLoading ? (
+            <div className="text-center py-8">Carregando categorias...</div>
+          ) : organizedCategories.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b">
                   <tr>
-                    <th className="text-left py-2 px-4">ID</th>
-                    <th className="text-left py-2 px-4">Cor</th>
-                    <th className="text-left py-2 px-4">Nome</th>
-                    <th className="text-left py-2 px-4">Categoria Pai</th>
-                    <th className="text-left py-2 px-4">Tipo</th>
-                    <th className="text-left py-2 px-4">Descrição</th>
-                    <th className="text-left py-2 px-4">Criada em</th>
-                    <th className="text-center py-2 px-4">Ações</th>
+                    <th className="text-left py-3 px-4">ID</th>
+                    <th className="text-left py-3 px-4">Cor</th>
+                    <th className="text-left py-3 px-4">Nome</th>
+                    <th className="text-left py-3 px-4">Categoria Pai</th>
+                    <th className="text-left py-3 px-4">Tipo</th>
+                    <th className="text-left py-3 px-4">Descrição</th>
+                    <th className="text-left py-3 px-4">Criada em</th>
+                    <th className="text-center py-3 px-4">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -517,11 +519,12 @@ export default function Categories() {
                       key={category.id}
                       className={`border-b hover:bg-muted/50 ${category.isChild ? "bg-muted/20" : ""}`}
                     >
-                      <td className="py-3 px-4 font-mono text-xs bg-muted/30">{category.id}</td>
+                      <td className="py-3 px-4 font-mono text-xs">{category.id}</td>
                       <td className="py-3 px-4">
                         <div
-                          className="w-6 h-6 rounded"
+                          className="w-6 h-6 rounded border"
                           style={{ backgroundColor: category.color || "#3b82f6" }}
+                          title={category.color || "#3b82f6"}
                         />
                       </td>
                       <td className="py-3 px-4 font-medium">
@@ -530,28 +533,33 @@ export default function Categories() {
                             <ChevronRight className="h-3 w-3 text-muted-foreground" />
                           )}
                           {category.name}
+                          {category.hasChildren && (
+                            <Badge variant="outline" className="text-xs">Pai</Badge>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">
                         {getParentName(category.parentId) || "-"}
                       </td>
                       <td className="py-3 px-4">
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          category.type === "income"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
-                        }`}>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${
+                            category.type === "income"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                          }`}
+                        >
                           {category.type === "income" ? "Receita" : "Despesa"}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-muted-foreground">
+                      <td className="py-3 px-4 text-muted-foreground max-w-xs truncate">
                         {category.description || "-"}
                       </td>
                       <td className="py-3 px-4 text-sm">
                         {new Date(category.createdAt).toLocaleDateString("pt-BR")}
                       </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex justify-center gap-2">
+                      <td className="py-3 px-4">
+                        <div className="flex justify-center gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -574,9 +582,22 @@ export default function Categories() {
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="text-center py-12">
+              <Tag className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <p className="text-muted-foreground mb-4">
+                {hasActiveFilters ? "Nenhuma categoria encontrada com os filtros aplicados" : "Nenhuma categoria criada"}
+              </p>
+              {!hasActiveFilters && (
+                <Button onClick={() => setOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Criar Primeira Categoria
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -655,36 +676,13 @@ export default function Categories() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Selecione uma categoria pai para transformar em subcategoria
-              </p>
             </div>
 
-            <div>
-              <Label>Cor *</Label>
-              <div className="grid grid-cols-4 gap-2 mt-2">
-                {COLORS.map((color) => (
-                  <button
-                    key={color.value}
-                    type="button"
-                    onClick={() => {
-                      setSelectedColor(color.value);
-                      setFormData((prev) => ({
-                        ...prev,
-                        color: color.value,
-                      }));
-                    }}
-                    className={`w-full h-10 rounded-lg border-2 transition-all ${
-                      selectedColor === color.value
-                        ? "border-gray-800 scale-105"
-                        : "border-gray-200 hover:border-gray-400"
-                    }`}
-                    style={{ backgroundColor: color.value }}
-                    title={color.name}
-                  />
-                ))}
-              </div>
-            </div>
+            <ColorPicker
+              value={formData.color}
+              onChange={(color) => setFormData((prev) => ({ ...prev, color }))}
+              label="Cor da Categoria *"
+            />
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
