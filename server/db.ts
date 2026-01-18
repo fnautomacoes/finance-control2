@@ -197,13 +197,14 @@ export async function getAccountById(accountId: number, userId: number) {
 /**
  * Transações
  */
-export async function getUserTransactions(userId: number, limit = 50) {
+export async function getUserTransactions(userId: number, limit = 500) {
   const db = await getDb();
   if (!db) return [];
   return db
     .select()
     .from(transactions)
     .where(eq(transactions.userId, userId))
+    .orderBy(desc(transactions.date), desc(transactions.id))
     .limit(limit);
 }
 
