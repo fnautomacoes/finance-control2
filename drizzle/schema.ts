@@ -125,6 +125,7 @@ export const transactions = pgTable("transactions", {
   type: transactionTypeEnum("type").notNull(),
   date: date("date").notNull(),
   status: transactionStatusEnum("status").default("completed"),
+  fitId: varchar("fitId", { length: 100 }), // OFX transaction ID for duplicate detection
   notes: text("notes"),
   attachments: json("attachments"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -384,3 +385,39 @@ export const apiTokens = pgTable("apiTokens", {
 
 export type ApiToken = typeof apiTokens.$inferSelect;
 export type InsertApiToken = typeof apiTokens.$inferInsert;
+
+/**
+ * Category mappings for OFX import auto-categorization
+ */
+export const categoryMappings = pgTable("categoryMappings", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  pattern: varchar("pattern", { length: 255 }).notNull(),
+  categoryId: integer("categoryId").notNull(),
+  isActive: boolean("isActive").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type CategoryMapping = typeof categoryMappings.$inferSelect;
+export type InsertCategoryMapping = typeof categoryMappings.$inferInsert;
+
+/**
+ * OFX Import history for tracking imported files
+ */
+export const ofxImports = pgTable("ofxImports", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  accountId: integer("accountId").notNull(),
+  fileName: varchar("fileName", { length: 255 }),
+  bankId: varchar("bankId", { length: 50 }),
+  bankAccountId: varchar("bankAccountId", { length: 50 }),
+  transactionCount: integer("transactionCount").notNull(),
+  duplicateCount: integer("duplicateCount").default(0),
+  startDate: date("startDate"),
+  endDate: date("endDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type OFXImport = typeof ofxImports.$inferSelect;
+export type InsertOFXImport = typeof ofxImports.$inferInsert;

@@ -1,4 +1,4 @@
-import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
+import { eq, and, sql, gte, lte, desc, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
@@ -25,6 +25,10 @@ import {
   liabilities,
   InsertLiability,
   costCenters,
+  categoryMappings,
+  InsertCategoryMapping,
+  ofxImports,
+  InsertOFXImport,
 } from "../drizzle/schema";
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: pg.Pool | null = null;
@@ -762,4 +766,134 @@ export async function getDashboardSummary(userId: number, startDate?: string, en
         : 0,
     })),
   };
+}
+
+/**
+ * OFX Import Functions
+ */
+
+// Get existing fitIds for an account to detect duplicates
+export async function getExistingFitIds(accountId: number, userId: number): Promise<Set<string>> {
+  const db = await getDb();
+  if (!db) return new Set();
+
+  const result = await db
+    .select({ fitId: transactions.fitId })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        eq(transactions.accountId, accountId),
+        sql`${transactions.fitId} IS NOT NULL`
+      )
+    );
+
+  return new Set(result.map((r) => r.fitId).filter((id): id is string => id !== null));
+}
+
+// Bulk insert transactions from OFX import
+export async function bulkInsertTransactions(
+  transactionsData: InsertTransaction[]
+): Promise<{ inserted: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (transactionsData.length === 0) {
+    return { inserted: 0 };
+  }
+
+  const result = await db.insert(transactions).values(transactionsData).returning();
+  return { inserted: result.length };
+}
+
+// Update account balance after import
+export async function updateAccountBalance(
+  accountId: number,
+  userId: number,
+  balanceChange: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(accounts)
+    .set({
+      balance: sql`CAST(${accounts.balance} AS DECIMAL) + ${balanceChange}`,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)));
+}
+
+// Create OFX import record
+export async function createOFXImport(data: InsertOFXImport) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(ofxImports).values(data).returning();
+  return result[0];
+}
+
+// Get OFX import history
+export async function getUserOFXImports(userId: number, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(ofxImports)
+    .where(eq(ofxImports.userId, userId))
+    .orderBy(desc(ofxImports.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Category Mapping Functions
+ */
+
+// Get user's category mappings
+export async function getUserCategoryMappings(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(categoryMappings)
+    .where(and(eq(categoryMappings.userId, userId), eq(categoryMappings.isActive, true)));
+}
+
+// Create category mapping
+export async function createCategoryMapping(data: InsertCategoryMapping) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(categoryMappings).values(data).returning();
+  return result[0];
+}
+
+// Update category mapping
+export async function updateCategoryMapping(
+  id: number,
+  userId: number,
+  data: Partial<InsertCategoryMapping>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .update(categoryMappings)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(categoryMappings.id, id), eq(categoryMappings.userId, userId)))
+    .returning();
+  return result[0];
+}
+
+// Delete category mapping
+export async function deleteCategoryMapping(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .delete(categoryMappings)
+    .where(and(eq(categoryMappings.id, id), eq(categoryMappings.userId, userId)));
+  return { success: true };
 }

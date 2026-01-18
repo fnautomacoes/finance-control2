@@ -34,6 +34,7 @@ import {
   Lock,
   Sliders,
   Key,
+  Upload,
 } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -108,9 +109,10 @@ const menuItems: MenuItem[] = [
     icon: Wrench,
   },
   {
-    name: "Importar lançamentos",
-    href: "/import",
-    icon: Download,
+    name: "Importar OFX",
+    href: "/import-ofx",
+    icon: Upload,
+    highlight: true,
   },
   {
     name: "Fechamento posição",
