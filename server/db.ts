@@ -38,6 +38,7 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       console.log("[Database] Connecting to PostgreSQL...");
+      console.log("[Database] DATABASE_URL:", process.env.DATABASE_URL?.replace(/:[^:@]+@/, ":****@")); // Mask password
       _pool = new pg.Pool({
         connectionString: process.env.DATABASE_URL,
         max: 10,
@@ -47,19 +48,22 @@ export async function getDb() {
 
       // Test the connection
       const client = await _pool.connect();
-      console.log("[Database] Connection successful!");
+      const testResult = await client.query('SELECT NOW() as now, current_database() as db');
+      console.log("[Database] ✅ Connection successful!");
+      console.log("[Database] 📅 Server time:", testResult.rows[0].now);
+      console.log("[Database] 🗄️  Database:", testResult.rows[0].db);
       client.release();
 
       _db = drizzle(_pool);
     } catch (error) {
-      console.error("[Database] Failed to connect:", error);
+      console.error("[Database] ❌ Failed to connect:", error);
       _db = null;
       _pool = null;
     }
   }
 
   if (!_db) {
-    console.warn("[Database] Database not available. DATABASE_URL:", process.env.DATABASE_URL ? "set" : "not set");
+    console.warn("[Database] ⚠️ Database not available. DATABASE_URL:", process.env.DATABASE_URL ? "set" : "not set");
   }
 
   return _db;
@@ -774,8 +778,13 @@ export async function getDashboardSummary(userId: number, startDate?: string, en
 
 // Get existing fitIds for an account to detect duplicates
 export async function getExistingFitIds(accountId: number, userId: number): Promise<Set<string>> {
+  console.log(`📋 [getExistingFitIds] Buscando fitIds existentes - Account: ${accountId}, User: ${userId}`);
+
   const db = await getDb();
-  if (!db) return new Set();
+  if (!db) {
+    console.warn("⚠️ [getExistingFitIds] Database não disponível, retornando Set vazio");
+    return new Set();
+  }
 
   const result = await db
     .select({ fitId: transactions.fitId })
@@ -788,22 +797,56 @@ export async function getExistingFitIds(accountId: number, userId: number): Prom
       )
     );
 
-  return new Set(result.map((r) => r.fitId).filter((id): id is string => id !== null));
+  const fitIdSet = new Set(result.map((r) => r.fitId).filter((id): id is string => id !== null));
+  console.log(`✅ [getExistingFitIds] Encontrados ${fitIdSet.size} fitIds existentes`);
+
+  return fitIdSet;
 }
 
 // Bulk insert transactions from OFX import
 export async function bulkInsertTransactions(
   transactionsData: InsertTransaction[]
 ): Promise<{ inserted: number }> {
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("📥 [bulkInsertTransactions] Iniciando inserção em lote");
+  console.log("📊 Quantidade de transações:", transactionsData.length);
+
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) {
+    console.error("❌ [bulkInsertTransactions] Database não disponível!");
+    throw new Error("Database not available");
+  }
 
   if (transactionsData.length === 0) {
+    console.log("⚠️ [bulkInsertTransactions] Nenhuma transação para inserir");
     return { inserted: 0 };
   }
 
-  const result = await db.insert(transactions).values(transactionsData).returning();
-  return { inserted: result.length };
+  // Log first transaction as sample
+  console.log("📝 [bulkInsertTransactions] Exemplo de transação:");
+  console.log(JSON.stringify(transactionsData[0], null, 2));
+
+  try {
+    console.log("💾 [bulkInsertTransactions] Executando INSERT...");
+    const result = await db.insert(transactions).values(transactionsData).returning();
+    console.log("✅ [bulkInsertTransactions] INSERT bem-sucedido!");
+    console.log("🔢 Registros inseridos:", result.length);
+
+    if (result.length > 0) {
+      console.log("🆔 IDs gerados:", result.map(r => r.id).join(", "));
+    }
+
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    return { inserted: result.length };
+  } catch (error: any) {
+    console.error("❌ [bulkInsertTransactions] ERRO ao inserir:");
+    console.error("   Mensagem:", error.message);
+    console.error("   Código:", error.code);
+    console.error("   Detalhe:", error.detail);
+    console.error("   Stack:", error.stack);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    throw error;
+  }
 }
 
 // Update account balance after import

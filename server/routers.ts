@@ -811,18 +811,31 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("📥 [OFX Import] Iniciando importação");
+        console.log("👤 User ID:", ctx.user.id);
+        console.log("🏦 Account ID:", input.accountId);
+        console.log("📊 Transações recebidas:", input.transactions.length);
+        console.log("💰 Atualizar saldo:", input.updateBalance);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         // Validate the account belongs to the user
         const account = await getAccountById(input.accountId, ctx.user.id);
         if (!account) {
+          console.error("❌ [OFX Import] Conta não encontrada ou não pertence ao usuário");
           throw new Error("Conta não encontrada");
         }
+        console.log("✅ [OFX Import] Conta validada:", account.name);
 
         if (input.transactions.length === 0) {
+          console.log("⚠️ [OFX Import] Nenhuma transação para importar");
           return { imported: 0, duplicatesSkipped: 0, balanceChange: 0 };
         }
 
         // Get existing fitIds to avoid duplicates
+        console.log("🔍 [OFX Import] Verificando duplicatas...");
         const existingFitIds = await getExistingFitIds(input.accountId, ctx.user.id);
+        console.log(`📋 [OFX Import] FitIds existentes: ${existingFitIds.size}`);
 
         // Filter out duplicates and prepare for insertion
         const transactionsToInsert = input.transactions
@@ -839,8 +852,22 @@ export const appRouter = router({
             status: "completed" as const,
           }));
 
+        console.log(`📊 [OFX Import] Transações após filtro de duplicatas: ${transactionsToInsert.length}`);
+        console.log(`⏭️  [OFX Import] Duplicatas ignoradas: ${input.transactions.length - transactionsToInsert.length}`);
+
+        if (transactionsToInsert.length === 0) {
+          console.log("⚠️ [OFX Import] Todas as transações já existem no banco");
+          return { imported: 0, duplicatesSkipped: input.transactions.length, balanceChange: 0 };
+        }
+
+        // Log first transaction sample
+        console.log("📝 [OFX Import] Exemplo de transação a inserir:");
+        console.log(JSON.stringify(transactionsToInsert[0], null, 2));
+
         // Bulk insert transactions
+        console.log("💾 [OFX Import] Iniciando inserção em lote...");
         const { inserted } = await bulkInsertTransactions(transactionsToInsert);
+        console.log(`✅ [OFX Import] Transações inseridas: ${inserted}`);
 
         // Calculate balance change if needed
         let balanceChange = 0;
@@ -850,10 +877,12 @@ export const appRouter = router({
             return sum + (tx.type === "income" ? amount : -amount);
           }, 0);
 
+          console.log(`💵 [OFX Import] Atualizando saldo: ${balanceChange}`);
           await updateAccountBalance(input.accountId, ctx.user.id, balanceChange);
         }
 
         // Record import history
+        console.log("📜 [OFX Import] Registrando histórico de importação...");
         await createOFXImport({
           userId: ctx.user.id,
           accountId: input.accountId,
@@ -866,11 +895,20 @@ export const appRouter = router({
           endDate: input.endDate,
         });
 
-        return {
+        const result = {
           imported: inserted,
           duplicatesSkipped: input.transactions.length - inserted,
           balanceChange,
         };
+
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("📊 [OFX Import] RESUMO FINAL:");
+        console.log("   ✅ Importadas:", result.imported);
+        console.log("   ⏭️  Duplicadas:", result.duplicatesSkipped);
+        console.log("   💰 Mudança saldo:", result.balanceChange);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        return result;
       }),
 
     // Get import history
