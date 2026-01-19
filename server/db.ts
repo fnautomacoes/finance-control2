@@ -198,14 +198,66 @@ export async function getAccountById(accountId: number, userId: number) {
  * Transações
  */
 export async function getUserTransactions(userId: number, limit = 500) {
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("📋 [getUserTransactions] INICIANDO");
+  console.log("👤 userId:", userId);
+  console.log("📊 limit:", limit);
+
   const db = await getDb();
-  if (!db) return [];
-  return db
-    .select()
-    .from(transactions)
-    .where(eq(transactions.userId, userId))
-    .orderBy(desc(transactions.date), desc(transactions.id))
-    .limit(limit);
+  if (!db) {
+    console.error("❌ [getUserTransactions] Database não disponível!");
+    return [];
+  }
+
+  try {
+    console.log("💾 [getUserTransactions] Executando SELECT...");
+
+    const result = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.userId, userId))
+      .orderBy(desc(transactions.date), desc(transactions.id))
+      .limit(limit);
+
+    console.log("✅ [getUserTransactions] SELECT executado");
+    console.log("📊 Registros encontrados:", result.length);
+
+    if (result.length > 0) {
+      console.log("📄 Primeira transação:", {
+        id: result[0].id,
+        description: result[0].description?.substring(0, 30),
+        amount: result[0].amount,
+        date: result[0].date,
+        accountId: result[0].accountId,
+      });
+      console.log("📄 Última transação:", {
+        id: result[result.length - 1].id,
+        description: result[result.length - 1].description?.substring(0, 30),
+        amount: result[result.length - 1].amount,
+        date: result[result.length - 1].date,
+      });
+    } else {
+      console.warn("⚠️  [getUserTransactions] NENHUMA TRANSAÇÃO ENCONTRADA!");
+      console.warn("   Verificando se existem transações de QUALQUER usuário...");
+
+      // Verificar se existem transações de qualquer usuário
+      const anyTx = await db.select().from(transactions).limit(5);
+      console.warn("   Total de transações (qualquer user):", anyTx.length);
+
+      if (anyTx.length > 0) {
+        console.warn("   ⚠️  CRÍTICO: Transações existem mas não são do userId", userId);
+        console.warn("   Exemplos de userIds no banco:", anyTx.map(t => t.userId).join(", "));
+      }
+    }
+
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    return result;
+
+  } catch (error: any) {
+    console.error("💥 [getUserTransactions] Erro no SELECT:", error.message);
+    console.error("Stack:", error.stack);
+    return [];
+  }
 }
 
 export async function createTransaction(data: InsertTransaction) {

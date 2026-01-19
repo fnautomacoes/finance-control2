@@ -242,9 +242,18 @@ export const appRouter = router({
 
   // Transações
   transactions: router({
-    list: protectedProcedure.query(({ ctx }) =>
-      getUserTransactions(ctx.user.id)
-    ),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      console.log("━━━ transactions.list ━━━");
+      console.log("🔐 Usuário autenticado:", ctx.user.id);
+      console.log("📧 Email:", ctx.user.email);
+
+      const result = await getUserTransactions(ctx.user.id);
+
+      console.log("📊 Retornando", result.length, "transações para o frontend");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+      return result;
+    }),
     create: protectedProcedure
       .input(
         z.object({
@@ -257,8 +266,12 @@ export const appRouter = router({
           notes: z.string().optional(),
         })
       )
-      .mutation(({ ctx, input }) =>
-        createTransaction({
+      .mutation(async ({ ctx, input }) => {
+        console.log("━━━ transactions.create ━━━");
+        console.log("🔐 Usuário:", ctx.user.id, ctx.user.email);
+        console.log("📝 Input:", JSON.stringify(input, null, 2));
+
+        const result = await createTransaction({
           userId: ctx.user.id,
           accountId: input.accountId,
           description: input.description,
@@ -267,8 +280,13 @@ export const appRouter = router({
           date: input.date,
           categoryId: input.categoryId,
           notes: input.notes,
-        })
-      ),
+        });
+
+        console.log("✅ Transação criada:", result.id);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+        return result;
+      }),
     update: protectedProcedure
       .input(
         z.object({
