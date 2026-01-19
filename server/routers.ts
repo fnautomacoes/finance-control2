@@ -14,6 +14,7 @@ import {
   updateCategory,
   deleteCategory,
   getUserTransactions,
+  getTransactionById,
   createTransaction,
   updateTransaction,
   deleteTransaction,
@@ -242,18 +243,29 @@ export const appRouter = router({
 
   // Transações
   transactions: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      console.log("━━━ transactions.list ━━━");
-      console.log("🔐 Usuário autenticado:", ctx.user.id);
-      console.log("📧 Email:", ctx.user.email);
+    list: protectedProcedure
+      .input(
+        z.object({
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          status: z.enum(["pending", "scheduled", "confirmed", "reconciled", "all"]).optional(),
+          accountId: z.number().optional(),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        console.log("━━━ transactions.list ━━━");
+        console.log("🔐 Usuário autenticado:", ctx.user.id);
+        console.log("📧 Email:", ctx.user.email);
+        console.log("📋 Filtros:", input);
 
-      const result = await getUserTransactions(ctx.user.id);
+        const result = await getUserTransactions(ctx.user.id, 500, input);
 
-      console.log("📊 Retornando", result.length, "transações para o frontend");
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━\n");
+        console.log("📊 Retornando", result.length, "transações para o frontend");
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-      return result;
-    }),
+        return result;
+      }),
+
     create: protectedProcedure
       .input(
         z.object({
@@ -262,8 +274,22 @@ export const appRouter = router({
           amount: z.string(),
           type: z.enum(["income", "expense"]),
           date: z.string(),
-          categoryId: z.number().optional(),
-          notes: z.string().optional(),
+          categoryId: z.number().optional().nullable(),
+          notes: z.string().optional().nullable(),
+          contactId: z.number().optional().nullable(),
+          documentNumber: z.string().optional().nullable(),
+          observations: z.string().optional().nullable(),
+          tags: z.string().optional().nullable(),
+          status: z.enum(["pending", "scheduled", "confirmed", "reconciled"]).default("pending"),
+          // Campos de recorrência
+          recurrence: z.object({
+            type: z.enum(["single", "installment", "fixed"]),
+            frequency: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
+            interval: z.number().optional(),
+            totalInstallments: z.number().optional(),
+            startInstallment: z.number().optional(),
+            installmentValue: z.string().optional(),
+          }).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -271,22 +297,48 @@ export const appRouter = router({
         console.log("🔐 Usuário:", ctx.user.id, ctx.user.email);
         console.log("📝 Input:", JSON.stringify(input, null, 2));
 
-        const result = await createTransaction({
-          userId: ctx.user.id,
-          accountId: input.accountId,
-          description: input.description,
-          amount: input.amount,
-          type: input.type,
-          date: input.date,
-          categoryId: input.categoryId,
-          notes: input.notes,
-        });
+        const { recurrence, ...baseData } = input;
 
-        console.log("✅ Transação criada:", result.id);
+        // Se não tem recorrência ou é transação única
+        if (!recurrence || recurrence.type === "single") {
+          const result = await createTransaction({
+            ...baseData,
+            userId: ctx.user.id,
+            isRecurring: false,
+            recurrenceType: "single",
+          });
+          console.log("✅ Transação única criada:", result.id);
+          return result;
+        }
+
+        // Gerar transações recorrentes
+        const { generateRecurringTransactions } = await import("./lib/recurrence");
+        const transactionsToCreate = generateRecurringTransactions(
+          { ...baseData, userId: ctx.user.id },
+          { ...recurrence, startDate: input.date }
+        );
+
+        console.log(`📊 Gerando ${transactionsToCreate.length} transações recorrentes`);
+
+        // Inserir primeira transação e obter ID
+        const parent = await createTransaction(transactionsToCreate[0]);
+
+        // Inserir demais transações com referência ao pai
+        if (transactionsToCreate.length > 1) {
+          const children = transactionsToCreate.slice(1).map((tx) => ({
+            ...tx,
+            userId: ctx.user.id,
+            parentTransactionId: parent.id,
+          }));
+          await bulkInsertTransactions(children);
+        }
+
+        console.log("✅ Transações recorrentes criadas, pai:", parent.id);
         console.log("━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-        return result;
+        return parent;
       }),
+
     update: protectedProcedure
       .input(
         z.object({
@@ -296,8 +348,13 @@ export const appRouter = router({
           amount: z.string().optional(),
           type: z.enum(["income", "expense"]).optional(),
           date: z.string().optional(),
-          categoryId: z.number().optional(),
-          notes: z.string().optional(),
+          categoryId: z.number().optional().nullable(),
+          notes: z.string().optional().nullable(),
+          contactId: z.number().optional().nullable(),
+          documentNumber: z.string().optional().nullable(),
+          observations: z.string().optional().nullable(),
+          tags: z.string().optional().nullable(),
+          status: z.enum(["pending", "scheduled", "confirmed", "reconciled"]).optional(),
         })
       )
       .mutation(({ ctx, input }) =>
@@ -309,13 +366,80 @@ export const appRouter = router({
           date: input.date,
           categoryId: input.categoryId,
           notes: input.notes,
+          contactId: input.contactId,
+          documentNumber: input.documentNumber,
+          observations: input.observations,
+          tags: input.tags,
+          status: input.status,
         })
       ),
+
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(({ ctx, input }) =>
         deleteTransaction(input.id, ctx.user.id)
       ),
+
+    // Reconhecer transação (marcar como pendente)
+    recognize: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        updateTransaction(input.id, ctx.user.id, { status: "pending" })
+      ),
+
+    // Confirmar transação
+    confirm: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        updateTransaction(input.id, ctx.user.id, { status: "confirmed" })
+      ),
+
+    // Confirmar parcialmente
+    confirmPartially: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          partialAmount: z.string(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        updateTransaction(input.id, ctx.user.id, {
+          amount: input.partialAmount,
+          status: "confirmed",
+          observations: "Confirmado parcialmente. Valor original era diferente.",
+        })
+      ),
+
+    // Conciliar transação
+    reconcile: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) =>
+        updateTransaction(input.id, ctx.user.id, { status: "reconciled" })
+      ),
+
+    // Clonar transação
+    clone: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const original = await getTransactionById(input.id, ctx.user.id);
+        if (!original) throw new Error("Transação não encontrada");
+
+        return createTransaction({
+          userId: ctx.user.id,
+          accountId: original.accountId,
+          categoryId: original.categoryId,
+          contactId: original.contactId,
+          description: `${original.description} (Cópia)`,
+          amount: original.amount as string,
+          type: original.type,
+          date: new Date().toISOString().split("T")[0],
+          status: "pending",
+          notes: original.notes,
+          documentNumber: original.documentNumber,
+          observations: original.observations,
+          tags: original.tags,
+        });
+      }),
   }),
 
   // Investimentos

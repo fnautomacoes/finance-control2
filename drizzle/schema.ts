@@ -19,7 +19,9 @@ export const categoryTypeEnum = pgEnum("category_type", ["income", "expense"]);
 export const accountTypeEnum = pgEnum("account_type", ["checking", "savings", "investment", "credit_card", "other"]);
 export const currencyEnum = pgEnum("currency", ["BRL", "USD", "EUR"]);
 export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense"]);
-export const transactionStatusEnum = pgEnum("transaction_status", ["pending", "completed", "cancelled"]);
+export const transactionStatusEnum = pgEnum("transaction_status", ["pending", "scheduled", "confirmed", "reconciled"]);
+export const recurrenceTypeEnum = pgEnum("recurrence_type", ["single", "installment", "fixed"]);
+export const recurrenceFrequencyEnum = pgEnum("recurrence_frequency", ["daily", "weekly", "monthly", "yearly"]);
 export const investmentTypeEnum = pgEnum("investment_type", [
   "stock",
   "etf",
@@ -126,10 +128,25 @@ export const transactions = pgTable("transactions", {
   amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
   type: transactionTypeEnum("type").notNull(),
   date: date("date").notNull(),
-  status: transactionStatusEnum("status").default("completed"),
+  status: transactionStatusEnum("status").default("pending"),
   fitId: varchar("fitId", { length: 100 }), // OFX transaction ID for duplicate detection
   notes: text("notes"),
   attachments: json("attachments"),
+
+  // Campos de recorrência
+  isRecurring: boolean("isRecurring").default(false),
+  recurrenceType: recurrenceTypeEnum("recurrenceType"),
+  recurrenceFrequency: recurrenceFrequencyEnum("recurrenceFrequency"),
+  recurrenceInterval: integer("recurrenceInterval").default(1),
+  installmentNumber: integer("installmentNumber"),
+  totalInstallments: integer("totalInstallments"),
+  parentTransactionId: integer("parentTransactionId"),
+
+  // Campos adicionais
+  documentNumber: varchar("documentNumber", { length: 100 }),
+  observations: text("observations"),
+  tags: text("tags"), // JSON array de tags
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
