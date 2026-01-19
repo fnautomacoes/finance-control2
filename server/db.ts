@@ -197,11 +197,19 @@ export async function getAccountById(accountId: number, userId: number) {
 /**
  * Transações
  */
-export async function getUserTransactions(userId: number, limit = 500) {
+interface TransactionFilters {
+  startDate?: string;
+  endDate?: string;
+  status?: "pending" | "scheduled" | "confirmed" | "reconciled" | "all";
+  accountId?: number;
+}
+
+export async function getUserTransactions(userId: number, limit = 500, filters?: TransactionFilters) {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("📋 [getUserTransactions] INICIANDO");
   console.log("👤 userId:", userId);
   console.log("📊 limit:", limit);
+  console.log("🔍 filters:", filters);
 
   const db = await getDb();
   if (!db) {
@@ -212,10 +220,26 @@ export async function getUserTransactions(userId: number, limit = 500) {
   try {
     console.log("💾 [getUserTransactions] Executando SELECT...");
 
+    // Build conditions array
+    const conditions = [eq(transactions.userId, userId)];
+
+    if (filters?.startDate) {
+      conditions.push(gte(transactions.date, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(transactions.date, filters.endDate));
+    }
+    if (filters?.status && filters.status !== "all") {
+      conditions.push(eq(transactions.status, filters.status));
+    }
+    if (filters?.accountId) {
+      conditions.push(eq(transactions.accountId, filters.accountId));
+    }
+
     const result = await db
       .select()
       .from(transactions)
-      .where(eq(transactions.userId, userId))
+      .where(and(...conditions))
       .orderBy(desc(transactions.date), desc(transactions.id))
       .limit(limit);
 
@@ -230,24 +254,8 @@ export async function getUserTransactions(userId: number, limit = 500) {
         date: result[0].date,
         accountId: result[0].accountId,
       });
-      console.log("📄 Última transação:", {
-        id: result[result.length - 1].id,
-        description: result[result.length - 1].description?.substring(0, 30),
-        amount: result[result.length - 1].amount,
-        date: result[result.length - 1].date,
-      });
     } else {
       console.warn("⚠️  [getUserTransactions] NENHUMA TRANSAÇÃO ENCONTRADA!");
-      console.warn("   Verificando se existem transações de QUALQUER usuário...");
-
-      // Verificar se existem transações de qualquer usuário
-      const anyTx = await db.select().from(transactions).limit(5);
-      console.warn("   Total de transações (qualquer user):", anyTx.length);
-
-      if (anyTx.length > 0) {
-        console.warn("   ⚠️  CRÍTICO: Transações existem mas não são do userId", userId);
-        console.warn("   Exemplos de userIds no banco:", anyTx.map(t => t.userId).join(", "));
-      }
     }
 
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
@@ -258,6 +266,19 @@ export async function getUserTransactions(userId: number, limit = 500) {
     console.error("Stack:", error.stack);
     return [];
   }
+}
+
+export async function getTransactionById(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(transactions)
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)))
+    .limit(1);
+
+  return result[0] || null;
 }
 
 export async function createTransaction(data: InsertTransaction) {
