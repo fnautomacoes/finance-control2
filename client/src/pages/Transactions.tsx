@@ -29,8 +29,9 @@ export default function Transactions() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
-  const [selectedAccount, setSelectedAccount] = useState<number>(1);
+  const [selectedAccount, setSelectedAccount] = useState<number>(0); // 0 = Todas as contas
   const [filterStatus, setFilterStatus] = useState<TransactionStatus | "all">("all");
+  const [showDebug, setShowDebug] = useState(false);
   const [formData, setFormData] = useState({
     accountId: 0,
     description: "",
@@ -51,12 +52,36 @@ export default function Transactions() {
   });
 
   // Queries
-  const transactionsQuery = trpc.transactions.list.useQuery();
+  const transactionsQuery = trpc.transactions.list.useQuery(undefined, {
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+  });
   const accountsQuery = trpc.accounts.list.useQuery();
   const categoriesQuery = trpc.categories.list.useQuery();
   const createTransactionMutation = trpc.transactions.create.useMutation();
   const updateTransactionMutation = trpc.transactions.update.useMutation();
   const deleteTransactionMutation = trpc.transactions.delete.useMutation();
+
+  // Debug logging
+  useEffect(() => {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🔄 [Transactions Page] Estado atualizado");
+    console.log("   Query status:", {
+      isLoading: transactionsQuery.isLoading,
+      isFetching: transactionsQuery.isFetching,
+      isError: transactionsQuery.isError,
+      isSuccess: transactionsQuery.isSuccess,
+    });
+    console.log("   Total recebido do backend:", transactionsQuery.data?.length || 0);
+    console.log("   Filtros ativos:", { filterType, selectedAccount, filterStatus });
+    if (transactionsQuery.data && transactionsQuery.data.length > 0) {
+      console.log("   Primeira transação:", transactionsQuery.data[0]);
+    }
+    if (transactionsQuery.error) {
+      console.error("   ❌ Erro:", transactionsQuery.error);
+    }
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+  }, [transactionsQuery.data, transactionsQuery.isLoading, transactionsQuery.isError, filterType, selectedAccount, filterStatus]);
 
   // Set default account when accounts are loaded
   useEffect(() => {
@@ -215,8 +240,70 @@ export default function Transactions() {
     };
   });
 
+  // Calcular transações filtradas para o debug
+  const debugInfo = {
+    queryStatus: transactionsQuery.isLoading ? "⏳ Loading" : transactionsQuery.isError ? "❌ Error" : "✅ Success",
+    totalFromBackend: transactionsQuery.data?.length || 0,
+    afterFilters: filteredTransactions.length,
+    filters: { filterType, selectedAccount, filterStatus },
+    accounts: accountsQuery.data?.map(a => ({ id: a.id, name: a.name })) || [],
+  };
+
   return (
     <div className="space-y-6">
+      {/* Debug Card - Toggle with button */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowDebug(!showDebug)}
+          className="text-xs"
+        >
+          {showDebug ? "Ocultar Debug" : "🔧 Debug"}
+        </Button>
+      </div>
+
+      {showDebug && (
+        <Card className="bg-yellow-50 border-yellow-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">🔧 Debug Info</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>Query Status: <span className="font-bold">{debugInfo.queryStatus}</span></div>
+              <div>Erro: <span className="font-bold">{transactionsQuery.error?.message || "Nenhum"}</span></div>
+              <div>Dados recebidos: <span className="font-bold text-blue-600">{debugInfo.totalFromBackend} transações</span></div>
+              <div>Após filtros: <span className="font-bold text-green-600">{debugInfo.afterFilters} transações</span></div>
+              <div>Filtro tipo: <span className="font-bold">{filterType}</span></div>
+              <div>Filtro conta: <span className="font-bold">{selectedAccount === 0 ? "Todas" : selectedAccount}</span></div>
+            </div>
+            <div className="border-t pt-2">
+              <div className="font-bold mb-1">Contas disponíveis:</div>
+              <div className="flex gap-2 flex-wrap">
+                {debugInfo.accounts.map(acc => (
+                  <span key={acc.id} className="bg-white px-2 py-1 rounded text-xs">
+                    {acc.id}: {acc.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {transactionsQuery.data && transactionsQuery.data.length > 0 && (
+              <div className="border-t pt-2">
+                <div className="font-bold mb-1">Primeira transação recebida:</div>
+                <pre className="bg-white p-2 rounded text-xs overflow-auto max-h-32">
+                  {JSON.stringify(transactionsQuery.data[0], null, 2)}
+                </pre>
+              </div>
+            )}
+            {transactionsQuery.data && transactionsQuery.data.length === 0 && (
+              <div className="border-t pt-2 text-red-600 font-bold">
+                ⚠️ Backend retornou 0 transações! Verifique os logs do servidor.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
